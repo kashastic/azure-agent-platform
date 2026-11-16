@@ -5,4 +5,6 @@ description: >-
   the values it owns (workload identity, Key Vault, registry); everything else
   comes from Git.
 type: application
-version: 0.1.0
+# Bump on every template change: the Terraform helm provider only upgrades
+# a local chart when its version changes.
+version: 0.2.0
