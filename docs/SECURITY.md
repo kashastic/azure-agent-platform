@@ -37,10 +37,10 @@ In the `eurag` namespace every pod starts from a default-deny network policy in 
 | --- | --- | --- |
 | web (Next.js) | the gateway | DNS only. No internet, so a miner can't download a payload or reach a pool |
 | api | the gateway | Qdrant, Postgres, Redis, DNS, and HTTPS on public addresses (Anthropic, Entra ID, blob storage, Turnstile). Private ranges and the cloud metadata endpoint are excluded |
-| postgres, redis | the api | nothing |
-| qdrant | the api | nothing |
+| postgres, redis | the api | DNS only |
+| qdrant | the api | DNS only |
 
-The namespace enforces Pod Security `restricted`: non-root, no privilege escalation, all capabilities dropped, RuntimeDefault seccomp. The api, web, Postgres and Redis containers have read-only root filesystems; Qdrant writes an init marker next to its binary, so its root filesystem stays writable. No pod mounts a Kubernetes service account token.
+The namespace enforces Pod Security `restricted`: non-root, no privilege escalation, all capabilities dropped, RuntimeDefault seccomp. The api, web, Postgres and Redis containers have read-only root filesystems; Qdrant writes an init marker next to its binary, so its root filesystem stays writable. No pod mounts a token for the Kubernetes API; the API pod's only token is scoped to Entra ID for the workload identity exchange.
 
 ### 4. Secrets
 
@@ -55,7 +55,17 @@ The namespace enforces Pod Security `restricted`: non-root, no privilege escalat
 - 2 free anonymous questions per IP per day, then sign-up; 10 lifetime questions per free account, then the user's own key.
 - Rate limits in Redis, shared by all API replicas.
 - The API trusts `X-Forwarded-For` only because the gateway is the only thing that can reach it (network policy), and the gateway drops whatever the client sent before adding the real peer address. The load balancer keeps the client's source address (`externalTrafficPolicy: Local`).
-- A monthly spend limit on the Anthropic key, a subscription budget alert, and a node CPU alert. A miner shows up as pegged CPU.
+- A monthly spend limit on the Anthropic workspace (set in the Anthropic console), a subscription budget alert, and a node CPU alert. A miner shows up as pegged CPU.
+
+## Verified
+
+On the last `make up` (16 November 2026), from outside and inside the cluster:
+
+- Twelve requests carrying twelve different forged `X-Forwarded-For` addresses hit the same rate limit as twelve plain ones: 10 through, then 429.
+- The web pod resolves names but its connections to the internet time out, and it cannot open a connection to Redis.
+- The API cannot reach `169.254.169.254` or plain HTTP on the internet, and does reach Anthropic over HTTPS.
+- A pod asking for `privileged: true` is rejected: `violates PodSecurity "restricted:latest"`.
+- Responses carry HSTS and no `X-Powered-By`; plain HTTP answers with a 301 to HTTPS.
 
 ## What this does not cover
 
