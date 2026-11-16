@@ -2,7 +2,7 @@
 
 A small internal platform on Azure where a team can deploy an AI agent to AKS. All infrastructure is Terraform, deployments go through CI/CD and GitOps, and each team's access is driven by one YAML file.
 
-The workload is [EURAG](https://github.com/kashastic/eu-rag), my citation-first RAG over EU law: a FastAPI service with Qdrant, local ONNX embeddings and reranking, and Claude for answers.
+The workload is [EURAG](https://github.com/kashastic/eu-rag), my citation-first RAG over EU law: a FastAPI service with Qdrant, local ONNX embeddings and reranking, Claude for answers, and a Next.js web app. It can run privately (port-forward only) or publicly at `eurag.duckdns.org` behind a Gateway with TLS. The public site is switched off between demos to save cost; `make up` brings it back on the same address in about 20 minutes.
 
 ## What it covers
 
@@ -14,6 +14,8 @@ The workload is [EURAG](https://github.com/kashastic/eu-rag), my citation-first 
 | CI/CD | Pull request checks (fmt, validate, tflint, checkov, plan), gated apply, image build and scan |
 | GitOps | Argo CD deploys from Git. CI never touches the cluster; it only commits an image tag |
 | Self-service access | `platform/teams.yaml` becomes Entra ID groups, namespace-scoped Azure RBAC, and namespaces with quotas and network policies |
+| Public entry point | Gateway API with Envoy Gateway on a static IP that outlives the cluster, Let's Encrypt certificates from cert-manager |
+| Security | Images gated on vulnerability scans, default-deny network policies in both directions, Pod Security `restricted`, secrets generated into Key Vault. See [docs/SECURITY.md](docs/SECURITY.md) |
 | Guardrails | Azure Policy (allowed regions, required tags), a subscription budget, a log ingestion cap |
 | Observability | Container Insights on a cost preset, control plane audit logs, alerts on node pressure and container restarts |
 
@@ -38,7 +40,7 @@ flowchart LR
     subgraph gha["GitHub Actions (OIDC, no stored secrets)"]
         checks["fmt, validate, tflint, checkov, plan"]
         apply["apply, after approval"]
-        build["build and scan EURAG image"]
+        build["build EURAG images, deploy only if the scan is clean"]
     end
 
     repo --> checks
@@ -52,14 +54,21 @@ flowchart LR
         acr[("Container Registry")]
         law[("Log Analytics")]
         wid["EURAG workload identity"]
+        pip["Static public IP"]
+        blob[("Corpus blob")]
     end
 
     subgraph aksrg["rg-agentplat-dev-aks: destroyed after each session"]
         aks["AKS: Entra ID, Azure RBAC, Cilium"]
         argo["Argo CD"]
-        eurag["EURAG API and Qdrant"]
+        gw["Envoy Gateway and cert-manager"]
+        eurag["EURAG: web, API, Qdrant, Postgres, Redis"]
         ns["Team namespaces"]
     end
+
+    user["Visitors"] -->|HTTPS| pip
+    pip --> gw
+    gw -->|HTTPRoute| eurag
 
     build -->|push| acr
     apply --> core
@@ -69,6 +78,7 @@ flowchart LR
     argo --> ns
     eurag -->|federated token| wid
     wid -->|Key Vault Secrets User| kv
+    wid -->|Blob Data Reader| blob
     aks -->|AcrPull| acr
     aks -->|Container Insights| law
 ```
@@ -77,7 +87,7 @@ flowchart LR
 
 **Infrastructure.** A pull request runs `terraform fmt`, `validate`, `tflint` and `checkov` on every stack, and a real `plan` of the foundation stack with a read-only identity. After merge, a manual run of the `terraform` workflow applies one stack, but only once a reviewer approves the `dev` environment. The apply identity only trusts tokens issued for that environment.
 
-**Application.** The `build-eurag` workflow checks out EURAG at a pinned commit, builds a `linux/amd64` image, scans it, and pushes it to the registry tagged with the EURAG commit. It then commits the new tag to `apps/eurag/chart/values-dev.yaml`. Argo CD sees the commit and rolls the deployment. Rolling back is a `git revert`.
+**Application.** The `build-eurag` workflow checks out EURAG at a pinned commit, builds the API and web images for `linux/amd64`, and pushes them to the registry tagged with the EURAG commit. Trivy scans both; only if neither has a fixable critical or high vulnerability does the workflow commit the new tag to `apps/eurag/chart/values-dev.yaml`. Argo CD sees the commit and rolls the deployment. Rolling back is a `git revert`.
 
 **A new team.** Add an entry to [`platform/teams.yaml`](platform/teams.yaml) in a pull request. Terraform creates the team's Entra ID group and grants it a role on its namespace only; Argo CD creates the namespace with a resource quota, default limits and a default-deny network policy. Nobody clicks anything in the portal, and the history of who got access is the Git log.
 
@@ -144,7 +154,7 @@ The reasoning behind each choice, with the trade-offs, is in [docs/DESIGN.md](do
 
 ## Cost
 
-On a pay-as-you-go subscription, the foundation costs a few euros a month (mostly the Basic registry). The cluster is one `Standard_D2s_v7` node (2 vCPU, 8 GB) on the free AKS tier, roughly 0.10 to 0.15 EUR an hour while it runs, and it is destroyed after each session. Log ingestion is capped at 0.5 GB a day and a subscription budget emails at 50% of actual and 100% of forecast spend.
+On a pay-as-you-go subscription, the foundation costs about 8 EUR a month while the site is off (mostly the Basic registry and the static IP). The cluster is one `Standard_D4s_v7` node (4 vCPU, 16 GB) on the free AKS tier, roughly 0.25 to 0.30 EUR an hour while it runs including the load balancer, and it is destroyed after each session. Log ingestion is capped at 0.5 GB a day and a subscription budget emails at 50% of actual and 100% of forecast spend.
 
 ## Known limits and next steps
 
@@ -152,8 +162,9 @@ On a pay-as-you-go subscription, the foundation costs a few euros a month (mostl
 - **CI identity scope.** The apply identity has Contributor and RBAC Administrator on the subscription. In a shared subscription it would be scoped to the platform resource groups, with a condition limiting which roles it can assign.
 - **Entra ID from CI.** Applying the `access` and `aks` stacks from CI needs Microsoft Graph permissions (`Group.ReadWrite.All`, `User.Read.All`) on the apply identity. Until a tenant admin grants them, those two stacks are applied locally.
 - **One node, no zones.** Production would split system and user node pools, spread across availability zones, and use the Standard tier with its SLA.
-- **EUR-Lex blocks cloud IPs.** The legal texts can't be scraped from inside Azure, so the cluster seeds from a cache scraped elsewhere and copied onto the volume ([runbook, section 6](docs/RUNBOOK.md#loading-the-eur-lex-cache-by-hand)). A CI job that publishes the cache to blob storage would remove the manual step.
-- **Qdrant version.** The chart pins the Qdrant server at 1.17.1 while EURAG ships client 1.20, which logs a compatibility warning. Queries work, but the server should be brought up to the client's version.
+- **EUR-Lex blocks cloud IPs.** The legal texts can't be scraped from inside Azure, so the corpus is scraped on a laptop, uploaded to blob storage once, and restored by every new cluster. A scheduled job outside Azure could keep it fresh.
+- **Accounts don't survive `make down`.** Postgres runs in the cluster on a disk that is deleted with it. A managed Azure Database for PostgreSQL in the foundation would keep them, at a monthly cost.
+- **No WAF or runtime threat detection.** See [docs/SECURITY.md](docs/SECURITY.md#what-this-does-not-cover).
 - **EURAG scales vertically for now.** Its document registry is a per-instance SQLite file, so the HPA is off until the registry moves to Postgres.
 - **Databricks.** A Databricks workspace with Unity Catalog, onboarded through the same `teams.yaml`, is the natural next stack.
 
