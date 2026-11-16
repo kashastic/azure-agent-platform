@@ -7,7 +7,7 @@ resource "azurerm_key_vault" "this" {
 
   # Access is Azure RBAC only (no access policies), so it is granted and
   # audited the same way as every other role in the platform.
-  enable_rbac_authorization = true
+  rbac_authorization_enabled = true
 
   soft_delete_retention_days    = var.soft_delete_retention_days
   purge_protection_enabled      = var.purge_protection_enabled
