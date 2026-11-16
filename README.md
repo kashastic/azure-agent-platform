@@ -27,7 +27,8 @@ Last full cycle, 16 November 2026, on a pay-as-you-go subscription in Germany We
 
 - `make up` built AKS and the platform with no manual steps. Argo CD synced Envoy Gateway, cert-manager and EURAG; cert-manager had a Let's Encrypt certificate about three minutes after the cluster existed; the seed restored the corpus from blob storage through the workload identity and embedded all **47 documents**.
 - `https://eurag.duckdns.org/healthz` reported `documents: 47`, `auth_enabled: true`, `encryption: true` and the Turnstile site key. Plain HTTP redirects to HTTPS; HSTS is set and `X-Powered-By` is stripped.
-- In a browser, an anonymous question got a cited answer (Sale of Goods Directive, Articles 10 and 12). After the free questions the sign-up wall appeared.
+- In a browser, an anonymous question got a cited answer (Sale of Goods Directive, Articles 10 and 12). After the free questions the sign-up wall appeared; a new account then got a cited answer on the free tier ("9 of 10 questions left") and kept the anonymous chat as a saved conversation.
+- `make down` then removed the cluster in about 12 minutes. The static IP stayed (unattached), and a foundation plan showed no drift.
 - Twelve requests with twelve forged `X-Forwarded-For` addresses hit the same rate limit as twelve plain ones (10 through, then 429), so a client can't mint fresh quota.
 - From inside the cluster: the web pod can't reach the internet (connection times out) or Redis; the API can't reach the cloud metadata endpoint or plain HTTP but does reach Anthropic over HTTPS; a privileged pod is rejected by Pod Security `restricted`.
 - Both images passed the vulnerability gate. On its first run the gate had stopped the API image; that fix is in [eu-rag#1](https://github.com/kashastic/eu-rag/pull/1) together with the Next.js upgrade.
