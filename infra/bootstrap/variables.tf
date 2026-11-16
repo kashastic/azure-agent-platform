@@ -34,3 +34,9 @@ variable "github_repository" {
   type        = string
   default     = "kashastic/azure-agent-platform"
 }
+
+variable "github_oidc_subject_repository" {
+  description = "How GitHub names the repository in OIDC token subjects. Newer repositories use immutable IDs: owner@owner_id/repo@repo_id."
+  type        = string
+  default     = "kashastic@44359944/azure-agent-platform@1459635005"
+}

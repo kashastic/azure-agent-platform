@@ -81,11 +81,15 @@ resource "local_file" "backend_config" {
 #   build: can only push images to the registry, only from main
 # ---------------------------------------------------------------------------
 
+# GitHub's subject claim uses immutable IDs (owner@id/repo@id), so renaming
+# the repository or the account can't hand these identities to someone else.
 locals {
+  subject_prefix = "repo:${var.github_oidc_subject_repository}"
+
   github_identities = {
-    plan  = "repo:${var.github_repository}:pull_request"
-    apply = "repo:${var.github_repository}:environment:${var.env}"
-    build = "repo:${var.github_repository}:ref:refs/heads/main"
+    plan  = "${local.subject_prefix}:pull_request"
+    apply = "${local.subject_prefix}:environment:${var.env}"
+    build = "${local.subject_prefix}:ref:refs/heads/main"
   }
 }
 
@@ -116,7 +120,7 @@ resource "azurerm_federated_identity_credential" "plan_main" {
   parent_id = azurerm_user_assigned_identity.github["plan"].id
   audience  = ["api://AzureADTokenExchange"]
   issuer    = "https://token.actions.githubusercontent.com"
-  subject   = "repo:${var.github_repository}:ref:refs/heads/main"
+  subject   = "${local.subject_prefix}:ref:refs/heads/main"
 
   depends_on = [azurerm_federated_identity_credential.github]
 }

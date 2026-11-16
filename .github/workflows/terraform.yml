@@ -50,7 +50,7 @@ jobs:
           - infra/envs/dev/aks
           - infra/envs/dev/platform
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: hashicorp/setup-terraform@v3
         with:
@@ -76,7 +76,7 @@ jobs:
     name: checkov
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # Reported, not blocking, while the lab trade-offs listed in
       # docs/DESIGN.md (public endpoints, Basic registry) are still open.
@@ -102,7 +102,7 @@ jobs:
       run:
         working-directory: infra/envs/dev/foundation
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: hashicorp/setup-terraform@v3
         with:
@@ -151,7 +151,7 @@ jobs:
       run:
         working-directory: infra/envs/dev/${{ inputs.stack }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: hashicorp/setup-terraform@v3
         with:
