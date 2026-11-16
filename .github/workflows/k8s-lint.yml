@@ -29,16 +29,23 @@ jobs:
       - name: helm lint
         run: |
           helm lint apps/eurag/chart -f apps/eurag/chart/values-dev.yaml -f apps/eurag/chart/ci/lint-values.yaml
+          helm lint apps/eurag/chart -f apps/eurag/chart/values-dev.yaml -f apps/eurag/chart/ci/lint-values.yaml \
+            -f apps/eurag/chart/ci/public-values.yaml
           helm lint platform/team-namespaces -f platform/teams.yaml
+          helm lint platform/edge
           helm lint infra/charts/argocd-apps
 
-      # Custom resources (Argo CD Application, SecretProviderClass) have no
-      # built-in schema and are skipped; everything else is checked strictly.
+      # Custom resources (Argo CD Application, SecretProviderClass, Gateway
+      # API, Envoy Gateway, cert-manager) have no built-in schema and are
+      # skipped; everything else is checked strictly.
       - name: Render and validate
         run: |
           helm template eurag apps/eurag/chart -f apps/eurag/chart/values-dev.yaml -f apps/eurag/chart/ci/lint-values.yaml \
             | kubeconform -strict -summary -ignore-missing-schemas
+          helm template eurag apps/eurag/chart -f apps/eurag/chart/values-dev.yaml -f apps/eurag/chart/ci/lint-values.yaml \
+            -f apps/eurag/chart/ci/public-values.yaml | kubeconform -strict -summary -ignore-missing-schemas
           helm template team-namespaces platform/team-namespaces -f platform/teams.yaml \
             | kubeconform -strict -summary -ignore-missing-schemas
+          helm template edge platform/edge | kubeconform -strict -summary -ignore-missing-schemas
           helm template platform-apps infra/charts/argocd-apps \
             | kubeconform -strict -summary -ignore-missing-schemas

@@ -2,3 +2,6 @@
 # writes image.tag here; Argo CD deploys whatever is committed.
 image:
   tag: "32906cd90762"
+web:
+  image:
+    tag: ""

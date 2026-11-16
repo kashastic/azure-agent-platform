@@ -1,9 +1,11 @@
 name: build-eurag
 
-# Builds EURAG from its own repository at a pinned ref, pushes the image to
-# the platform registry, then commits the new tag to the dev values file.
-# Argo CD notices the commit and rolls the deployment. CI never talks to the
-# cluster.
+# Builds EURAG's two images (API and Next.js web app) from its own
+# repository at a pinned ref, pushes them to the platform registry, scans
+# them, and only then commits the new tag to the dev values file. Argo CD
+# notices the commit and rolls the deployment. CI never talks to the
+# cluster, and an image with a fixable critical or high vulnerability is
+# never deployed.
 on:
   workflow_dispatch:
     inputs:
@@ -25,6 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       IMAGE: ${{ vars.ACR_NAME }}.azurecr.io/eurag
+      WEB_IMAGE: ${{ vars.ACR_NAME }}.azurecr.io/eurag-web
     steps:
       - uses: actions/checkout@v5
 
@@ -67,27 +70,44 @@ jobs:
 
       # linux/amd64 because AKS nodes are x86_64 (EURAG's own images were
       # built on an arm64 Mac).
-      - name: Build and push
+      - name: Build and push the API
         uses: docker/build-push-action@v6
         with:
           context: src/eu-rag
           platforms: linux/amd64
           push: true
           tags: ${{ env.IMAGE }}:${{ steps.meta.outputs.tag }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
 
-      - name: Scan the image (report only)
+      - name: Build and push the web app
+        uses: docker/build-push-action@v6
+        with:
+          context: src/eu-rag/frontend/web
+          platforms: linux/amd64
+          push: true
+          tags: ${{ env.WEB_IMAGE }}:${{ steps.meta.outputs.tag }}
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+
+      # Gate: fail on any critical or high vulnerability that has a fix.
+      # The tag is only committed below if both images pass, so a failing
+      # image sits in the registry but never reaches the cluster.
+      - name: Scan both images
         run: |
-          docker run --rm -v "$HOME/.docker/config.json:/root/.docker/config.json:ro" \
-            aquasec/trivy:latest image --no-progress --severity HIGH,CRITICAL --exit-code 0 \
-            "$IMAGE:${{ steps.meta.outputs.tag }}"
+          for ref in "$IMAGE:${{ steps.meta.outputs.tag }}" "$WEB_IMAGE:${{ steps.meta.outputs.tag }}"; do
+            echo "::group::trivy $ref"
+            docker run --rm -v "$HOME/.docker/config.json:/root/.docker/config.json:ro" \
+              aquasec/trivy:latest image --no-progress --severity HIGH,CRITICAL \
+              --ignore-unfixed --exit-code 1 "$ref"
+            echo "::endgroup::"
+          done
 
       - name: Commit the new tag for Argo CD
         env:
           TAG: ${{ steps.meta.outputs.tag }}
         run: |
-          yq -i '.image.tag = strenv(TAG)' apps/eurag/chart/values-dev.yaml
+          yq -i '.image.tag = strenv(TAG) | .web.image.tag = strenv(TAG)' apps/eurag/chart/values-dev.yaml
           if git diff --quiet; then
             echo "values-dev.yaml already points at $TAG"
             exit 0

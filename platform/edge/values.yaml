@@ -1,0 +1,24 @@
+# Set by the Argo CD application (infra/charts/argocd-apps). Defaults are
+# only here so the chart lints.
+hostname: example.duckdns.org
+
+# Static public IP created by the foundation stack, so DNS survives rebuilds.
+staticIp:
+  name: pip-example-ingress
+  resourceGroup: rg-example-core
+
+# Namespaces with this label may attach routes to the HTTPS listener.
+routeNamespaceLabel:
+  key: gateway-access
+  value: public
+
+acme:
+  server: https://acme-v02.api.letsencrypt.org/directory
+
+proxy:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 512Mi

@@ -23,6 +23,16 @@ data "azurerm_user_assigned_identity" "eurag" {
   resource_group_name = "rg-${local.name}-core"
 }
 
+data "azurerm_public_ip" "ingress" {
+  name                = "pip-${local.name}-ingress"
+  resource_group_name = "rg-${local.name}-core"
+}
+
+data "azurerm_storage_account" "data" {
+  name                = "st${local.unique}"
+  resource_group_name = "rg-${local.name}-core"
+}
+
 resource "helm_release" "argocd" {
   name             = "argocd"
   repository       = "https://argoproj.github.io/argo-helm"
@@ -52,12 +62,22 @@ resource "helm_release" "platform_apps" {
     targetRevision = var.gitops_revision
     labels         = local.labels
 
+    edge = {
+      enabled               = var.public_hostname != ""
+      hostname              = var.public_hostname
+      staticIpName          = data.azurerm_public_ip.ingress.name
+      staticIpResourceGroup = data.azurerm_public_ip.ingress.resource_group_name
+    }
+
     eurag = {
-      namespace        = var.eurag_namespace
-      imageRepository  = "${data.azurerm_container_registry.core.login_server}/eurag"
-      keyVaultName     = data.azurerm_key_vault.core.name
-      tenantId         = data.azurerm_client_config.current.tenant_id
-      workloadClientId = data.azurerm_user_assigned_identity.eurag.client_id
+      namespace          = var.eurag_namespace
+      imageRepository    = "${data.azurerm_container_registry.core.login_server}/eurag"
+      webImageRepository = "${data.azurerm_container_registry.core.login_server}/eurag-web"
+      keyVaultName       = data.azurerm_key_vault.core.name
+      tenantId           = data.azurerm_client_config.current.tenant_id
+      workloadClientId   = data.azurerm_user_assigned_identity.eurag.client_id
+      publicHostname     = var.public_hostname
+      corpusBlobUrl      = "${data.azurerm_storage_account.data.primary_blob_endpoint}corpus/eurag-raw.tgz"
     }
   })]
 

@@ -1,0 +1,24 @@
+# How Envoy Gateway runs the proxy for the public Gateway: one replica
+# behind an Azure load balancer on the foundation's static IP.
+# externalTrafficPolicy Local keeps the client's source address, which the
+# app's per-IP quota and rate limits depend on.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyProxy
+metadata:
+  name: public
+  namespace: {{ .Release.Namespace }}
+spec:
+  provider:
+    type: Kubernetes
+    kubernetes:
+      envoyService:
+        type: LoadBalancer
+        externalTrafficPolicy: Local
+        annotations:
+          service.beta.kubernetes.io/azure-load-balancer-resource-group: {{ .Values.staticIp.resourceGroup | quote }}
+          service.beta.kubernetes.io/azure-pip-name: {{ .Values.staticIp.name | quote }}
+      envoyDeployment:
+        replicas: 1
+        container:
+          resources:
+            {{- toYaml .Values.proxy.resources | nindent 12 }}

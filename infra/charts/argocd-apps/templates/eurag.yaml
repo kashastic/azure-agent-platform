@@ -25,6 +25,17 @@ spec:
           value: {{ .Values.eurag.keyVaultName | quote }}
         - name: azure.workloadIdentityClientId
           value: {{ .Values.eurag.workloadClientId | quote }}
+        - name: web.image.repository
+          value: {{ .Values.eurag.webImageRepository | quote }}
+        - name: corpus.blobUrl
+          value: {{ .Values.eurag.corpusBlobUrl | quote }}
+        - name: public.hostname
+          value: {{ .Values.eurag.publicHostname | quote }}
+        {{- if .Values.eurag.publicHostname }}
+        # A public deployment must come up with the whole corpus or not at all.
+        - name: seed.expectDocs
+          value: "47"
+        {{- end }}
   destination:
     server: https://kubernetes.default.svc
     namespace: {{ .Values.eurag.namespace }}
@@ -37,8 +48,14 @@ spec:
     managedNamespaceMetadata:
       labels:
         team: platform
+        {{- if .Values.eurag.publicHostname }}
+        # Lets this namespace attach routes to the public Gateway.
+        gateway-access: public
+        pod-security.kubernetes.io/enforce: restricted
+        {{- else }}
         pod-security.kubernetes.io/enforce: baseline
         pod-security.kubernetes.io/warn: restricted
+        {{- end }}
         {{- range $key, $value := .Values.labels }}
         {{ $key }}: {{ $value | quote }}
         {{- end }}

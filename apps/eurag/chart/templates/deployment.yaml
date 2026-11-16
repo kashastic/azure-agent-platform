@@ -74,6 +74,9 @@ spec:
             - -c
             - |
               mkdir -p /app/var/corpus-cache
+              {{- if .Values.corpus.blobUrl }}
+              python -I /opt/eurag-platform/restore_corpus.py || exit 1
+              {{- end }}
               cp -r /app/var/corpus-cache/. /app/data/raw/
               if [ -f /app/var/registry.sqlite3 ]; then
                 echo "eurag: registry present, ingesting cached sources only"
@@ -87,6 +90,10 @@ spec:
               exit $status
           env:
             {{- include "eurag.env" . | nindent 12 }}
+            {{- with .Values.corpus.blobUrl }}
+            - name: EURAG_CORPUS_BLOB_URL
+              value: {{ . | quote }}
+            {{- end }}
           resources:
             {{- toYaml .Values.seed.resources | nindent 12 }}
           securityContext:
@@ -96,6 +103,13 @@ spec:
               mountPath: /app/var
             - name: corpus-cache
               mountPath: /app/data/raw
+            - name: tmp
+              mountPath: /tmp
+            {{- if .Values.corpus.blobUrl }}
+            - name: platform-scripts
+              mountPath: /opt/eurag-platform
+              readOnly: true
+            {{- end }}
         {{- end }}
       containers:
         - name: api
@@ -138,12 +152,24 @@ spec:
               mountPath: /app/var
             - name: corpus-cache
               mountPath: /app/data/raw
+            - name: tmp
+              mountPath: /tmp
             # Mounting this volume is what triggers the Key Vault read and
             # the sync into the eurag-secrets Secret.
             - name: keyvault
               mountPath: /mnt/secrets-store
               readOnly: true
       volumes:
+        # The root filesystem is read-only; Python and the ONNX runtime
+        # still need a scratch directory.
+        - name: tmp
+          emptyDir:
+            sizeLimit: 1Gi
+        {{- if .Values.corpus.blobUrl }}
+        - name: platform-scripts
+          configMap:
+            name: eurag-platform-scripts
+        {{- end }}
         - name: state
           persistentVolumeClaim:
             claimName: eurag-state

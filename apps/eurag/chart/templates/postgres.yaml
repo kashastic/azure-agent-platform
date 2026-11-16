@@ -1,0 +1,103 @@
+{{- if .Values.public.hostname }}
+# Accounts, sessions, audit log and saved chats. Reachable only from the
+# API; its password is generated into Key Vault and synced as its own
+# Secret by the API pod's Key Vault mount.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: eurag-postgres
+  labels:
+    {{- include "eurag.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres
+spec:
+  serviceName: eurag-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "eurag.postgresSelector" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "eurag.postgresSelector" . | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      # 70 is the postgres user in the Alpine image.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 70
+        runAsGroup: 70
+        fsGroup: 70
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: postgres
+          image: {{ .Values.postgres.image }}
+          ports:
+            - name: postgres
+              containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: eurag
+            - name: POSTGRES_USER
+              value: eurag
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: eurag-postgres
+                  key: POSTGRES_PASSWORD
+            # A subdirectory, because the disk's root holds lost+found.
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-h", "127.0.0.1", "-U", "eurag", "-d", "eurag"]
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-h", "127.0.0.1", "-U", "eurag", "-d", "eurag"]
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          resources:
+            {{- toYaml .Values.postgres.resources | nindent 12 }}
+          securityContext:
+            {{- include "eurag.containerSecurityContext" . | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: run
+              mountPath: /var/run/postgresql
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: run
+          emptyDir: {}
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: {{ .Values.postgres.storageClass }}
+        resources:
+          requests:
+            storage: {{ .Values.postgres.storage }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: eurag-postgres
+  labels:
+    {{- include "eurag.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres
+spec:
+  selector:
+    {{- include "eurag.postgresSelector" . | nindent 4 }}
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+{{- end }}

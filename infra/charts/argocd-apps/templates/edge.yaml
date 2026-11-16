@@ -1,0 +1,93 @@
+{{- if .Values.edge.enabled }}
+# The public entry point as one application: Envoy Gateway and cert-manager
+# from their upstream charts, plus the Gateway itself from this repo.
+# One sync applies the Gateway API CRDs before any Deployment starts, so
+# cert-manager always finds them at startup (it only checks then).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: edge
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/part-of: agent-platform
+spec:
+  project: default
+  sources:
+    - repoURL: docker.io/envoyproxy
+      chart: gateway-helm
+      targetRevision: {{ .Values.edge.envoyGatewayVersion | quote }}
+      helm:
+        releaseName: envoy-gateway
+        valuesObject:
+          deployment:
+            envoyGateway:
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 128Mi
+                limits:
+                  memory: 512Mi
+    - repoURL: https://charts.jetstack.io
+      chart: cert-manager
+      targetRevision: {{ .Values.edge.certManagerVersion | quote }}
+      helm:
+        releaseName: cert-manager
+        valuesObject:
+          crds:
+            enabled: true
+          config:
+            apiVersion: controller.config.cert-manager.io/v1alpha1
+            kind: ControllerConfiguration
+            enableGatewayAPI: true
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+          webhook:
+            resources:
+              requests:
+                cpu: 10m
+                memory: 32Mi
+          cainjector:
+            resources:
+              requests:
+                cpu: 10m
+                memory: 64Mi
+    - repoURL: {{ .Values.repoURL | quote }}
+      targetRevision: {{ .Values.targetRevision | quote }}
+      path: platform/edge
+      helm:
+        parameters:
+          - name: hostname
+            value: {{ .Values.edge.hostname | quote }}
+          - name: staticIp.name
+            value: {{ .Values.edge.staticIpName | quote }}
+          - name: staticIp.resourceGroup
+            value: {{ .Values.edge.staticIpResourceGroup | quote }}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: {{ .Values.edge.namespace }}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    # The Gateway and issuer wait for the controllers' webhooks to come up.
+    retry:
+      limit: 10
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 3m
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - SkipDryRunOnMissingResource=true
+    managedNamespaceMetadata:
+      labels:
+        team: platform
+        pod-security.kubernetes.io/enforce: baseline
+        pod-security.kubernetes.io/warn: restricted
+        {{- range $key, $value := .Values.labels }}
+        {{ $key }}: {{ $value | quote }}
+        {{- end }}
+{{- end }}

@@ -16,6 +16,30 @@ app.kubernetes.io/name: eurag
 app.kubernetes.io/component: qdrant
 {{- end }}
 
+{{- define "eurag.webSelector" -}}
+app.kubernetes.io/name: eurag
+app.kubernetes.io/component: web
+{{- end }}
+
+{{- define "eurag.postgresSelector" -}}
+app.kubernetes.io/name: eurag
+app.kubernetes.io/component: postgres
+{{- end }}
+
+{{- define "eurag.redisSelector" -}}
+app.kubernetes.io/name: eurag
+app.kubernetes.io/component: redis
+{{- end }}
+
+{{/* Key Vault secrets in use: the base list, plus the public ones. */}}
+{{- define "eurag.secrets" -}}
+{{- $secrets := .Values.azure.secrets -}}
+{{- if .Values.public.hostname -}}
+{{- $secrets = concat $secrets .Values.azure.publicSecrets -}}
+{{- end -}}
+{{- toYaml $secrets -}}
+{{- end }}
+
 {{- define "eurag.image" -}}
 {{ required "image.repository is required" .Values.image.repository }}:{{ required "image.tag is required" .Values.image.tag }}
 {{- end }}
@@ -35,13 +59,31 @@ app.kubernetes.io/component: qdrant
   value: {{ .Values.eurag.strictBoot | quote }}
 - name: EURAG_RERANK_BATCH
   value: {{ .Values.eurag.rerankBatch | quote }}
-{{- range .Values.azure.secrets }}
+{{- range (include "eurag.secrets" . | fromYamlArray) }}
 - name: {{ .envName }}
   valueFrom:
     secretKeyRef:
       name: eurag-secrets
       key: {{ .envName }}
       optional: true
+{{- end }}
+{{- if .Values.public.hostname }}
+# As in EURAG's production compose. The passwords above must come first:
+# $(VAR) only expands variables defined earlier in the list.
+- name: EURAG_AUTH_ENABLED
+  value: "true"
+- name: EURAG_DATABASE_URL
+  value: "postgresql://eurag:$(POSTGRES_PASSWORD)@eurag-postgres:5432/eurag"
+- name: EURAG_REDIS_URL
+  value: "redis://:$(REDIS_PASSWORD)@eurag-redis:6379/0"
+# Only the gateway can reach the API (network policy), and it replaces any
+# client-sent X-Forwarded-For with the real peer address.
+- name: EURAG_TRUST_PROXY
+  value: "true"
+- name: EURAG_FREE_ANON_QUESTIONS
+  value: {{ .Values.public.freeAnonQuestions | quote }}
+- name: EURAG_FREE_USER_QUESTIONS
+  value: {{ .Values.public.freeUserQuestions | quote }}
 {{- end }}
 {{- range $name, $value := .Values.eurag.extraEnv }}
 - name: {{ $name }}
@@ -51,6 +93,7 @@ app.kubernetes.io/component: qdrant
 
 {{- define "eurag.containerSecurityContext" -}}
 allowPrivilegeEscalation: false
+readOnlyRootFilesystem: true
 capabilities:
   drop:
     - ALL

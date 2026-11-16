@@ -20,7 +20,9 @@ spec:
         - port: 6333
         - port: 6334
 ---
-# The API accepts traffic from its own namespace only (port-forward included).
+{{- if not .Values.public.hostname }}
+# Private mode: the API accepts traffic from its own namespace only
+# (port-forward included).
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -38,3 +40,137 @@ spec:
         - podSelector: {}
       ports:
         - port: 8000
+{{- else }}
+# Public mode. Everything in the namespace is denied in both directions,
+# then each pod gets exactly the paths it needs. If one pod is taken over,
+# it can't reach the internet (except the API, on HTTPS only), the cloud
+# metadata endpoint, or anything in the cluster it doesn't already use.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  labels:
+    {{- include "eurag.labels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  labels:
+    {{- include "eurag.labels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+---
+# The gateway reaches the API and the web app; nothing else does.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-from-gateway
+  labels:
+    {{- include "eurag.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/component
+        operator: In
+        values: [api, web]
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.public.edgeNamespace }}
+      ports:
+        - port: 8000
+        - port: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: api-egress
+  labels:
+    {{- include "eurag.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "eurag.apiSelector" . | nindent 6 }}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "eurag.qdrantSelector" . | nindent 14 }}
+      ports:
+        - port: 6333
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "eurag.postgresSelector" . | nindent 14 }}
+      ports:
+        - port: 5432
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "eurag.redisSelector" . | nindent 14 }}
+      ports:
+        - port: 6379
+    # Anthropic, Entra ID (workload identity), blob storage and Turnstile,
+    # all on HTTPS. Private ranges and the metadata endpoint stay closed.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 169.254.0.0/16
+              - 100.64.0.0/10
+      ports:
+        - port: 443
+          protocol: TCP
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: datastores-ingress
+  labels:
+    {{- include "eurag.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/component
+        operator: In
+        values: [postgres, redis]
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "eurag.apiSelector" . | nindent 14 }}
+      ports:
+        - port: 5432
+        - port: 6379
+{{- end }}

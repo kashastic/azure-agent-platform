@@ -1,0 +1,19 @@
+# The app trusts the first X-Forwarded-For hop as the client address
+# (EURAG_TRUST_PROXY). Drop whatever the client sent before Envoy adds the
+# real peer address, so a forged header can't open a fresh quota bucket.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: ClientTrafficPolicy
+metadata:
+  name: public
+  namespace: {{ .Release.Namespace }}
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: public
+  headers:
+    earlyRequestHeaders:
+      remove:
+        - X-Forwarded-For
+        - X-Real-IP
+        - Forwarded

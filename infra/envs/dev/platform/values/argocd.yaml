@@ -11,6 +11,13 @@ notifications:
   enabled: false
 
 configs:
+  # Envoy Gateway publishes its Helm chart to an OCI registry.
+  repositories:
+    envoy-gateway:
+      name: envoy-gateway
+      type: helm
+      url: docker.io/envoyproxy
+      enableOCI: "true"
   params:
     # TLS is not terminated inside the cluster; the UI is only reached
     # through kubectl port-forward, which is itself authenticated with Entra ID.

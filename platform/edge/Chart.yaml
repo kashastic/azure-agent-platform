@@ -1,0 +1,5 @@
+apiVersion: v2
+name: edge
+description: Public entry point. Envoy Gateway proxy settings, the shared Gateway, Let's Encrypt issuer and client-IP handling.
+type: application
+version: 0.1.0

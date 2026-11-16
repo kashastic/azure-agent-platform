@@ -1,0 +1,12 @@
+# Placeholder values for linting public mode in CI. In the cluster these
+# come from Terraform through the Argo CD application.
+public:
+  hostname: eurag.example.org
+corpus:
+  blobUrl: https://stexample.blob.core.windows.net/corpus/eurag-raw.tgz
+web:
+  image:
+    repository: example.azurecr.io/eurag-web
+    tag: "0000000"
+seed:
+  expectDocs: 47

@@ -55,6 +55,11 @@ spec:
     spec:
       automountServiceAccountToken: false
       securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
         seccompProfile:
           type: RuntimeDefault
       containers:
@@ -81,8 +86,13 @@ spec:
             periodSeconds: 20
           resources:
             {{- toYaml .Values.qdrant.resources | nindent 12 }}
+          # Qdrant writes an init marker next to its binary, so its root
+          # filesystem stays writable; everything else is locked down.
           securityContext:
             allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           volumeMounts:
             - name: storage
               mountPath: /qdrant/storage

@@ -1,0 +1,51 @@
+{{- if .Values.corpus.blobUrl }}
+# Restores the corpus cache from blob storage on first boot. EUR-Lex refuses
+# requests from cloud IPs, so the cluster can't scrape the legal texts
+# itself. Uses the pod's workload identity (Storage Blob Data Reader on one
+# container) and only the standard library, so nothing is installed.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: eurag-platform-scripts
+  labels:
+    {{- include "eurag.labels" . | nindent 4 }}
+data:
+  restore_corpus.py: |
+    import io, json, os, sys, tarfile, urllib.parse, urllib.request
+
+    dest = "/app/var/corpus-cache"
+    if any(name for name in os.listdir(dest) if not name.startswith(".")):
+        print("eurag: corpus cache present, not restoring")
+        sys.exit(0)
+
+    env = os.environ
+    authority = env.get("AZURE_AUTHORITY_HOST", "https://login.microsoftonline.com/").rstrip("/")
+    with open(env["AZURE_FEDERATED_TOKEN_FILE"]) as f:
+        assertion = f.read().strip()
+    form = urllib.parse.urlencode({
+        "grant_type": "client_credentials",
+        "client_id": env["AZURE_CLIENT_ID"],
+        "scope": "https://storage.azure.com/.default",
+        "client_assertion_type": "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
+        "client_assertion": assertion,
+    }).encode()
+    token_url = f"{authority}/{env['AZURE_TENANT_ID']}/oauth2/v2.0/token"
+    token = json.load(urllib.request.urlopen(token_url, form, timeout=30))["access_token"]
+
+    request = urllib.request.Request(env["EURAG_CORPUS_BLOB_URL"], headers={
+        "Authorization": f"Bearer {token}",
+        "x-ms-version": "2023-11-03",
+    })
+    blob = urllib.request.urlopen(request, timeout=120).read()
+
+    with tarfile.open(fileobj=io.BytesIO(blob), mode="r:gz") as archive:
+        for member in archive.getmembers():
+            # Plain files and directories only, inside the destination.
+            target = os.path.realpath(os.path.join(dest, member.name))
+            inside = target == dest or target.startswith(dest + os.sep)
+            if not inside or not (member.isfile() or member.isdir()):
+                sys.exit(f"eurag: refusing archive entry {member.name!r}")
+        archive.extractall(dest)
+    count = sum(len(files) for _, _, files in os.walk(dest))
+    print(f"eurag: restored {count} corpus files from blob storage")
+{{- end }}

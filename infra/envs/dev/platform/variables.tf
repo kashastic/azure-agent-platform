@@ -52,3 +52,9 @@ variable "eurag_namespace" {
   type        = string
   default     = "eurag"
 }
+
+variable "public_hostname" {
+  description = "Public hostname for EURAG, served through the Gateway with a Let's Encrypt certificate. Its DNS record must point at the foundation's static IP. Empty keeps EURAG private (port-forward only)."
+  type        = string
+  default     = "eurag.duckdns.org"
+}
