@@ -101,6 +101,8 @@ public:
   edgeNamespace: edge
   freeAnonQuestions: 2
   freeUserQuestions: 10
+  # Gateway timeout for the API paths (answers can take over a minute).
+  apiTimeout: 120s
   # Cloudflare Turnstile on anonymous questions and sign-up. Both keys are
   # read from Key Vault (the site key is public, but keeping it next to its
   # secret means rotating the widget never needs a commit). Both names set

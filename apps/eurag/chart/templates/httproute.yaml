@@ -30,6 +30,11 @@ spec:
             # Don't advertise the framework and version to scanners.
             remove:
               - X-Powered-By
+      # Envoy's default route timeout is 15 s. A cited answer takes about
+      # 20 s, and the escalation path (stronger model, deeper retrieval)
+      # longer, so the API routes get two minutes.
+      timeouts:
+        request: {{ .Values.public.apiTimeout }}
       backendRefs:
         - name: eurag
           port: {{ .Values.service.port }}
