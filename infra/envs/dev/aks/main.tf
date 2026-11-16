@@ -105,11 +105,11 @@ resource "azurerm_role_assignment" "team_cluster_user" {
 # ---------------------------------------------------------------------------
 
 resource "azurerm_federated_identity_credential" "eurag" {
-  name      = "${module.aks.name}-${var.eurag_namespace}-${var.eurag_service_account}"
-  parent_id = data.azurerm_user_assigned_identity.eurag.id
-  audience  = ["api://AzureADTokenExchange"]
-  issuer    = module.aks.oidc_issuer_url
-  subject   = "system:serviceaccount:${var.eurag_namespace}:${var.eurag_service_account}"
+  name                      = "${module.aks.name}-${var.eurag_namespace}-${var.eurag_service_account}"
+  user_assigned_identity_id = data.azurerm_user_assigned_identity.eurag.id
+  audience                  = ["api://AzureADTokenExchange"]
+  issuer                    = module.aks.oidc_issuer_url
+  subject                   = "system:serviceaccount:${var.eurag_namespace}:${var.eurag_service_account}"
 }
 
 # ---------------------------------------------------------------------------
