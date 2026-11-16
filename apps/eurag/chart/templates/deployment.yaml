@@ -59,8 +59,13 @@ spec:
           securityContext:
             {{- include "eurag.containerSecurityContext" . | nindent 12 }}
         {{- if .Values.seed.enabled }}
-        # First boot only: scrape the official sources and embed them. The
-        # registry on the volume marks a finished seed, so restarts skip this.
+        # First boot: scrape the official sources and embed them. Later
+        # starts only ingest what is cached; unchanged documents are skipped
+        # by content hash. The scrape cache is kept on the volume
+        # (/app/var/corpus-cache), so a cache copied in by hand survives
+        # restarts. EUR-Lex refuses cloud datacenter IPs; see the runbook.
+        # Seeding runs here rather than in the api container so it gets its
+        # own memory budget instead of sharing the API's.
         - name: seed-corpus
           image: {{ include "eurag.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
@@ -68,11 +73,18 @@ spec:
             - sh
             - -c
             - |
+              mkdir -p /app/var/corpus-cache
+              cp -r /app/var/corpus-cache/. /app/data/raw/
               if [ -f /app/var/registry.sqlite3 ]; then
-                echo "eurag: registry present, skipping seed"
-                exit 0
+                echo "eurag: registry present, ingesting cached sources only"
+                python -m data.seed
+              else
+                python -m data.seed --scrape{{ with .Values.seed.expectDocs }} --expect-docs {{ . }}{{ end }}
               fi
-              exec python -m data.seed --scrape{{ with .Values.seed.expectDocs }} --expect-docs {{ . }}{{ end }}
+              status=$?
+              rm -f /app/data/raw/.seed.lock
+              cp -r /app/data/raw/. /app/var/corpus-cache/
+              exit $status
           env:
             {{- include "eurag.env" . | nindent 12 }}
           resources:
@@ -135,7 +147,7 @@ spec:
         - name: state
           persistentVolumeClaim:
             claimName: eurag-state
-        # Raw scraped sources are only needed while seeding.
+        # Working copy of the scrape cache; the durable copy is on the volume.
         - name: corpus-cache
           emptyDir:
             sizeLimit: 1Gi

@@ -30,8 +30,9 @@ eurag:
   extraEnv: {}
 
 seed:
-  # First boot only: scrape the official EU sources and embed them into
-  # Qdrant. Skipped when the registry already exists on the volume.
+  # First boot: scrape the official EU sources and embed them into Qdrant.
+  # Later starts ingest the cache on the volume only (unchanged documents
+  # are skipped), so they never need the network.
   enabled: true
   # Fail the seed unless at least this many documents were ingested.
   expectDocs: null

@@ -117,7 +117,25 @@ kubectl -n argocd get applications
 kubectl -n eurag get pods -w
 ```
 
-The first start takes a while: the `seed-corpus` init container scrapes the EU sources and embeds them (watch it with `kubectl -n eurag logs deploy/eurag -c seed-corpus -f`), then the API loads its models. Later restarts skip the seed.
+The first start takes a while: the `seed-corpus` init container scrapes the EU sources and embeds them (watch it with `kubectl -n eurag logs deploy/eurag -c seed-corpus -f`), then the API loads its models. The scrape cache is kept on the volume, so later starts only ingest what is cached and skip unchanged documents.
+
+### Loading the EUR-Lex cache by hand
+
+EUR-Lex refuses requests from Azure datacenter IPs. In the cluster the seed logs `SKIPPED ... text does not match expected phrases` for the legal acts and only the portal sources get in (18 of 47 documents). Scrape on a laptop and copy the cache onto the volume:
+
+```bash
+# On the laptop, in the eu-rag checkout
+python -m data.seed --scrape
+tar czf eurag-raw.tgz -C data raw
+
+# Against the cluster
+POD=$(kubectl -n eurag get pods -l app.kubernetes.io/component=api -o name | cut -d/ -f2)
+kubectl -n eurag cp eurag-raw.tgz $POD:/app/var/eurag-raw.tgz -c api
+kubectl -n eurag exec $POD -c api -- sh -c 'mkdir -p /app/var/corpus-cache && tar xzf /app/var/eurag-raw.tgz -C /app/var/corpus-cache --strip-components=1 && rm /app/var/eurag-raw.tgz'
+kubectl -n eurag delete pod $POD      # the init container ingests the cache on the next start
+```
+
+Don't run `python -m data.seed` with `kubectl exec` in the api container: it shares the API's memory limit and the container gets OOM-killed.
 
 ```bash
 kubectl -n eurag port-forward svc/eurag 8000:8000
@@ -158,3 +176,5 @@ cd infra/bootstrap && terraform destroy -var-file=../envs/dev/common.tfvars
 | Pod stuck in `ContainerCreating`, event mentions `SecretProviderClass` | The `anthropic-api-key` secret is missing from Key Vault, or the federated credential is from an old cluster: re-apply the aks stack |
 | `ImagePullBackOff` | The tag in `values-dev.yaml` was never built. Run the build workflow |
 | `seed-corpus` restarts | Read its log. Scraping retries on the next start; raise memory in `seed.resources` if it was OOMKilled |
+| `/healthz` shows 18 documents, seed log full of `SKIPPED` | EUR-Lex blocks cloud IPs. Load the cache by hand (section 6) |
+| Pod `Pending` with `Insufficient cpu` | The AKS add-ons reserve most of a 2-vCPU node. Lower CPU requests or use a larger `node_vm_size` |
