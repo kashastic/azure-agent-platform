@@ -48,7 +48,14 @@ terraform apply -var-file=../envs/dev/common.tfvars
 cd ../..
 ```
 
-This writes `infra/envs/dev/backend.hcl`. Commit it (it holds names, not secrets). Then configure GitHub Actions with the printed commands:
+This writes `infra/envs/dev/backend.hcl`. Commit it (it holds names, not secrets). Keep a copy of the bootstrap state next to the others, so it survives a lost laptop or an ephemeral Cloud Shell:
+
+```bash
+az storage blob upload --auth-mode login --account-name "$(terraform -chdir=infra/bootstrap output -raw state_storage_account)" \
+  -c tfstate -n bootstrap/terraform.tfstate -f infra/bootstrap/terraform.tfstate --overwrite
+```
+
+Then configure GitHub Actions with the printed commands:
 
 ```bash
 terraform -chdir=infra/bootstrap output -raw github_variables | sh

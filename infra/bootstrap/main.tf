@@ -101,24 +101,22 @@ resource "azurerm_user_assigned_identity" "github" {
 resource "azurerm_federated_identity_credential" "github" {
   for_each = local.github_identities
 
-  name                = "github-${each.key}"
-  resource_group_name = azurerm_resource_group.state.name
-  parent_id           = azurerm_user_assigned_identity.github[each.key].id
-  audience            = ["api://AzureADTokenExchange"]
-  issuer              = "https://token.actions.githubusercontent.com"
-  subject             = each.value
+  name      = "github-${each.key}"
+  parent_id = azurerm_user_assigned_identity.github[each.key].id
+  audience  = ["api://AzureADTokenExchange"]
+  issuer    = "https://token.actions.githubusercontent.com"
+  subject   = each.value
 }
 
 # A second credential on the plan identity, so a manual plan from main works
 # too. Created after the first one: Azure rejects parallel writes of
 # federated credentials on the same identity.
 resource "azurerm_federated_identity_credential" "plan_main" {
-  name                = "github-plan-main"
-  resource_group_name = azurerm_resource_group.state.name
-  parent_id           = azurerm_user_assigned_identity.github["plan"].id
-  audience            = ["api://AzureADTokenExchange"]
-  issuer              = "https://token.actions.githubusercontent.com"
-  subject             = "repo:${var.github_repository}:ref:refs/heads/main"
+  name      = "github-plan-main"
+  parent_id = azurerm_user_assigned_identity.github["plan"].id
+  audience  = ["api://AzureADTokenExchange"]
+  issuer    = "https://token.actions.githubusercontent.com"
+  subject   = "repo:${var.github_repository}:ref:refs/heads/main"
 
   depends_on = [azurerm_federated_identity_credential.github]
 }
