@@ -67,13 +67,18 @@ app.kubernetes.io/component: redis
   value: {{ .Values.eurag.strictBoot | quote }}
 - name: EURAG_RERANK_BATCH
   value: {{ .Values.eurag.rerankBatch | quote }}
+{{- /* Private mode tolerates a missing key (EURAG falls back to quoting
+     sources). In public mode every secret is required: if the synced
+     Secret doesn't have a key yet, the kubelet retries until it does,
+     instead of starting the API half-configured. */}}
+{{- $optional := not .Values.public.hostname }}
 {{- range (include "eurag.secrets" . | fromYamlArray) }}
 - name: {{ .envName }}
   valueFrom:
     secretKeyRef:
       name: eurag-secrets
       key: {{ .envName }}
-      optional: true
+      optional: {{ $optional }}
 {{- end }}
 {{- if .Values.public.hostname }}
 # As in EURAG's production compose. The passwords above must come first:
