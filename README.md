@@ -168,6 +168,7 @@ On a pay-as-you-go subscription, the foundation costs about 8 EUR a month while 
 - **One node, no zones.** Production would split system and user node pools, spread across availability zones, and use the Standard tier with its SLA.
 - **EUR-Lex blocks cloud IPs.** The legal texts can't be scraped from inside Azure, so the corpus is scraped on a laptop, uploaded to blob storage once, and restored by every new cluster. A scheduled job outside Azure could keep it fresh.
 - **Accounts don't survive `make down`.** Postgres runs in the cluster on a disk that is deleted with it. A managed Azure Database for PostgreSQL in the foundation would keep them, at a monthly cost.
+- **Argo CD shows the edge app out of sync.** Four objects (the Gateway, its redirect route, the Let's Encrypt issuer and cert-manager's webhook) report drift even with server-side diff, though every sync succeeds and nothing changes. It needs a closer look with the `argocd` CLI.
 - **No WAF or runtime threat detection.** See [docs/SECURITY.md](docs/SECURITY.md#what-this-does-not-cover).
 - **EURAG scales vertically for now.** Its document registry is a per-instance SQLite file, so the HPA is off until the registry moves to Postgres.
 - **Databricks.** A Databricks workspace with Unity Catalog, onboarded through the same `teams.yaml`, is the natural next stack.
