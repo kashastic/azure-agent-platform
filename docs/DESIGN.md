@@ -114,3 +114,14 @@ AKS bills node VMs and disks to its node resource group, so a resource-group bud
 ### 15. Monitoring sized for cost
 
 Container Insights uses the "logs and events" preset (container logs, Kubernetes events, pod inventory, every 5 minutes, `kube-system` excluded). Control plane logs include `kube-audit-admin` (changes, not reads) and `guard` (Entra ID sign-ins). Alerts cover node CPU and memory, and any workload container restart, which is how an out-of-memory kill would show up. EURAG's own devlog records exactly that failure on a 4 GB host.
+
+## What the first deployment changed
+
+The code was written first and then deployed from an empty subscription. These are the things that only showed up against real Azure, and what changed because of them.
+
+- **GitHub's OIDC subject format.** The first image build failed to sign in with `AADSTS700213`. GitHub now names the repository in token subjects by immutable IDs (`repo:owner@id/repo@id:...`), not by name. The federated credentials in bootstrap now use that form, which also means renaming the repository or account can't hand these identities to someone else.
+- **ACR Tasks unavailable.** `az acr build` is not permitted on student and free-credit subscriptions (`TasksOperationsNotAllowed`). Images are built in GitHub Actions with the push-only build identity, which was the intended path anyway.
+- **VM sizes and quota.** Azure for Students limits the regions (five in Europe for this subscription) and marks most VM sizes as not available for the subscription, while the sizes it does allow had zero quota. A quota request came back `ResourceNotAvailableForOffer`. I found this by intersecting the Compute SKU API's restrictions with the per-family quotas, then moved the subscription to pay-as-you-go. The node size is a variable for exactly this reason.
+- **Deprecated arguments.** `enable_rbac_authorization` on Key Vault and `resource_group_name` on federated credentials are deprecated in azurerm 4.x and were replaced, so the plan is warning-free.
+- **Bootstrap state.** The bootstrap stack keeps local state by design. When running from an ephemeral shell, a copy goes into the state account (`bootstrap/terraform.tfstate`) right after apply.
+
