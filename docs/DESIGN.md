@@ -129,7 +129,7 @@ EUR-Lex refuses requests from cloud IPs, so the cluster can't scrape the legal t
 
 ### 21. Off means destroyed
 
-"Turning the site off" is `make down`: the cluster, its disks and its load balancer are deleted, and only the foundation remains (about 8 EUR a month, mostly the registry and the static IP). Stopping the cluster would keep the disks and load balancer billing. Bringing it back is `make up`, about 20 minutes, on the same address. Accounts created while it was up do not survive; this is a demo environment, not a service with users.
+"Turning the site off" is `make down`: the cluster, its disks and its load balancer are deleted, and only the foundation remains (about 8 EUR a month, mostly the registry and the static IP). Stopping the cluster would keep the disks and load balancer billing. Bringing it back is `make up`, about 25 minutes, on the same address. Accounts created while it was up do not survive; this is a demo environment, not a service with users.
 
 ## Guardrails and cost
 
