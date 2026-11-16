@@ -1,0 +1,49 @@
+# Platform teams. This one file drives both halves of onboarding:
+#
+#   Terraform  (infra/envs/dev/access, infra/envs/dev/aks)
+#     - an Entra ID security group per team, with these members
+#     - Azure RBAC on the team's namespace (k8s_role)
+#     - optional read access to Key Vault secrets
+#
+#   Argo CD    (platform/team-namespaces)
+#     - the namespace, a resource quota, default container limits
+#     - a default-deny network policy (only pods in the same namespace may connect)
+#
+# Onboarding a team is a pull request to this file.
+#
+# k8s_role:  reader | writer | admin (namespace scope), or cluster-admin
+# members:   Entra ID user principal names; they must exist in the tenant
+# quota:     requests the whole namespace may reserve (optional)
+
+teams:
+  platform:
+    description: Platform engineering
+    namespace: platform
+    cost_center: cc-platform
+    k8s_role: cluster-admin
+    keyvault_secrets_read: true
+    members: []
+    quota:
+      cpu: "2"
+      memory: 4Gi
+      pods: "30"
+
+  data-science:
+    description: Data science, notebooks and model APIs
+    namespace: data-science
+    cost_center: cc-data
+    k8s_role: writer
+    keyvault_secrets_read: false
+    members: []
+    quota:
+      cpu: "1"
+      memory: 2Gi
+      pods: "20"
+
+  analytics:
+    description: BI and analytics engineers, read-only on the cluster
+    namespace: analytics
+    cost_center: cc-analytics
+    k8s_role: reader
+    keyvault_secrets_read: false
+    members: []
