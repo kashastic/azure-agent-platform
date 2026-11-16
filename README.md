@@ -17,6 +17,18 @@ The workload is [EURAG](https://github.com/kashastic/eu-rag), my citation-first 
 | Guardrails | Azure Policy (allowed regions, required tags), a subscription budget, a log ingestion cap |
 | Observability | Container Insights on a cost preset, control plane audit logs, alerts on node pressure and container restarts |
 
+## Status
+
+Deployed end to end on 16 November 2026, starting from an empty pay-as-you-go subscription in Germany West Central:
+
+- All five stacks applied. A fresh `terraform plan` on bootstrap, foundation and aks afterwards shows no changes.
+- The EURAG image was built and pushed by the `build-eurag` workflow over OIDC, with no stored credentials, and Argo CD deployed it from this repository.
+- `kubectl` works only through Entra ID; the cluster has no local accounts.
+- EURAG serves its full corpus of 47 documents (31 EUR-Lex acts plus EU portal pages and national funding schemes, 4,202 chunks). Its Anthropic key comes from Key Vault through workload identity.
+- The cluster is destroyed between sessions (`make down`) and the foundation stays, so the next session starts with `make up`.
+
+[docs/DESIGN.md](docs/DESIGN.md#what-the-first-deployment-changed) lists what the first deployment changed.
+
 ## Architecture
 
 ```mermaid
@@ -140,6 +152,8 @@ On a pay-as-you-go subscription, the foundation costs a few euros a month (mostl
 - **CI identity scope.** The apply identity has Contributor and RBAC Administrator on the subscription. In a shared subscription it would be scoped to the platform resource groups, with a condition limiting which roles it can assign.
 - **Entra ID from CI.** Applying the `access` and `aks` stacks from CI needs Microsoft Graph permissions (`Group.ReadWrite.All`, `User.Read.All`) on the apply identity. Until a tenant admin grants them, those two stacks are applied locally.
 - **One node, no zones.** Production would split system and user node pools, spread across availability zones, and use the Standard tier with its SLA.
+- **EUR-Lex blocks cloud IPs.** The legal texts can't be scraped from inside Azure, so the cluster seeds from a cache scraped elsewhere and copied onto the volume ([runbook, section 6](docs/RUNBOOK.md#loading-the-eur-lex-cache-by-hand)). A CI job that publishes the cache to blob storage would remove the manual step.
+- **Qdrant version.** The chart pins the Qdrant server at 1.17.1 while EURAG ships client 1.20, which logs a compatibility warning. Queries work, but the server should be brought up to the client's version.
 - **EURAG scales vertically for now.** Its document registry is a per-instance SQLite file, so the HPA is off until the registry moves to Postgres.
 - **Databricks.** A Databricks workspace with Unity Catalog, onboarded through the same `teams.yaml`, is the natural next stack.
 
