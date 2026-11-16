@@ -1,0 +1,179 @@
+name: terraform
+
+# Pull requests: static checks on every stack, plus a real plan of the
+# foundation stack with a read-only identity.
+# Manual run: plan and apply one stack, after approval of the dev environment.
+on:
+  pull_request:
+    paths:
+      - "infra/**"
+      - "platform/teams.yaml"
+      - ".tflint.hcl"
+      - ".github/workflows/terraform.yml"
+  workflow_dispatch:
+    inputs:
+      stack:
+        description: Stack to plan and apply
+        type: choice
+        options:
+          - foundation
+          - access
+          - aks
+          - platform
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  # Never two applies of the same stack at once (state locking is the
+  # second line of defence).
+  group: terraform-${{ github.event_name }}-${{ inputs.stack || github.ref }}
+  cancel-in-progress: false
+
+env:
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+  ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+jobs:
+  checks:
+    name: fmt, validate, tflint (${{ matrix.dir }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dir:
+          - infra/bootstrap
+          - infra/envs/dev/foundation
+          - infra/envs/dev/access
+          - infra/envs/dev/aks
+          - infra/envs/dev/platform
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "^1.9"
+
+      - name: terraform fmt
+        run: terraform fmt -check -recursive -diff infra
+
+      - name: terraform validate
+        working-directory: ${{ matrix.dir }}
+        run: |
+          terraform init -backend=false -input=false
+          terraform validate
+
+      - uses: terraform-linters/setup-tflint@v4
+
+      - name: tflint
+        run: |
+          tflint --init --config "$GITHUB_WORKSPACE/.tflint.hcl"
+          tflint --chdir "${{ matrix.dir }}" --config "$GITHUB_WORKSPACE/.tflint.hcl"
+
+  security-scan:
+    name: checkov
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Reported, not blocking, while the lab trade-offs listed in
+      # docs/DESIGN.md (public endpoints, Basic registry) are still open.
+      - uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: infra
+          framework: terraform
+          soft_fail: true
+          quiet: true
+
+  plan-foundation:
+    name: plan (foundation)
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    needs: checks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      TF_VAR_alert_email: ${{ secrets.ALERT_EMAIL }}
+      TF_VAR_platform_admin_object_ids: ${{ vars.PLATFORM_ADMIN_OBJECT_IDS || '[]' }}
+    defaults:
+      run:
+        working-directory: infra/envs/dev/foundation
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "^1.9"
+          terraform_wrapper: false
+
+      # OIDC: GitHub issues a short-lived token, Azure trusts it through a
+      # federated credential on the plan identity. No secret is stored.
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID_PLAN }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: terraform init
+        run: terraform init -backend-config=../backend.hcl
+
+      # -lock=false: the plan identity can read state but not take the lease.
+      - name: terraform plan
+        run: terraform plan -lock=false -var-file=../common.tfvars -out=tfplan
+
+      - name: Publish the plan
+        run: |
+          {
+            echo "### Terraform plan: foundation"
+            echo '```'
+            terraform show -no-color tfplan | tail -c 60000
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  apply:
+    name: apply (${{ inputs.stack }})
+    if: github.event_name == 'workflow_dispatch'
+    needs: checks
+    runs-on: ubuntu-latest
+    # Required reviewers on the "dev" environment gate this job, and the
+    # apply identity only trusts tokens issued for this environment.
+    environment: dev
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      TF_VAR_alert_email: ${{ secrets.ALERT_EMAIL }}
+      TF_VAR_platform_admin_object_ids: ${{ vars.PLATFORM_ADMIN_OBJECT_IDS || '[]' }}
+    defaults:
+      run:
+        working-directory: infra/envs/dev/${{ inputs.stack }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "^1.9"
+          terraform_wrapper: false
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID_APPLY }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      # kubectl and kubelogin, for the Helm provider in the platform stack.
+      - name: Install kubelogin
+        if: inputs.stack == 'platform'
+        run: sudo az aks install-cli
+
+      - name: terraform init
+        run: terraform init -backend-config=../backend.hcl
+
+      - name: terraform plan
+        run: terraform plan -var-file=../common.tfvars -out=tfplan
+
+      - name: terraform apply
+        run: terraform apply -auto-approve tfplan

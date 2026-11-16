@@ -1,0 +1,44 @@
+name: kubernetes-manifests
+
+on:
+  pull_request:
+    paths:
+      - "apps/**"
+      - "platform/**"
+      - "infra/charts/**"
+      - ".github/workflows/k8s-lint.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/setup-helm@v4
+
+      - name: Install kubeconform
+        run: |
+          mkdir -p "$HOME/bin"
+          curl -sSL https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64.tar.gz \
+            | tar xz -C "$HOME/bin" kubeconform
+          echo "$HOME/bin" >> "$GITHUB_PATH"
+
+      - name: helm lint
+        run: |
+          helm lint apps/eurag/chart -f apps/eurag/chart/values-dev.yaml -f apps/eurag/chart/ci/lint-values.yaml
+          helm lint platform/team-namespaces -f platform/teams.yaml
+          helm lint infra/charts/argocd-apps
+
+      # Custom resources (Argo CD Application, SecretProviderClass) have no
+      # built-in schema and are skipped; everything else is checked strictly.
+      - name: Render and validate
+        run: |
+          helm template eurag apps/eurag/chart -f apps/eurag/chart/values-dev.yaml -f apps/eurag/chart/ci/lint-values.yaml \
+            | kubeconform -strict -summary -ignore-missing-schemas
+          helm template team-namespaces platform/team-namespaces -f platform/teams.yaml \
+            | kubeconform -strict -summary -ignore-missing-schemas
+          helm template platform-apps infra/charts/argocd-apps \
+            | kubeconform -strict -summary -ignore-missing-schemas
