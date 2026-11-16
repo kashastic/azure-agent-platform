@@ -1,5 +1,7 @@
-# Argo CD sized for a single small node. Anything not set here keeps the
-# chart default.
+# Argo CD sized for a single small node. On a 2-vCPU AKS node the managed
+# add-ons already request about 1.45 vCPU, so CPU requests here are kept
+# small; they reserve capacity for scheduling and don't cap usage.
+# Anything not set here keeps the chart default.
 
 # No SSO and no notifications in the lab: admin login through port-forward.
 dex:
@@ -17,7 +19,7 @@ configs:
 controller:
   resources:
     requests:
-      cpu: 100m
+      cpu: 50m
       memory: 256Mi
     limits:
       memory: 1Gi
@@ -25,7 +27,7 @@ controller:
 repoServer:
   resources:
     requests:
-      cpu: 50m
+      cpu: 20m
       memory: 128Mi
     limits:
       memory: 512Mi
@@ -33,7 +35,7 @@ repoServer:
 server:
   resources:
     requests:
-      cpu: 50m
+      cpu: 20m
       memory: 128Mi
     limits:
       memory: 256Mi
@@ -41,7 +43,7 @@ server:
 redis:
   resources:
     requests:
-      cpu: 50m
+      cpu: 10m
       memory: 64Mi
     limits:
       memory: 256Mi
@@ -49,7 +51,7 @@ redis:
 applicationSet:
   resources:
     requests:
-      cpu: 25m
+      cpu: 10m
       memory: 64Mi
     limits:
       memory: 256Mi

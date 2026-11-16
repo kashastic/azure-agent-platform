@@ -37,16 +37,18 @@ seed:
   expectDocs: null
   resources:
     requests:
-      cpu: 250m
+      cpu: 100m
       memory: 1Gi
     limits:
       memory: 2560Mi
 
 # Measured by EURAG: ~835 MB idle, ~1.8 GB answering, ~2.1 GB on the
-# escalation path with rerankBatch 8.
+# escalation path with rerankBatch 8. CPU is a small request with no limit:
+# the node's managed add-ons already reserve most of its CPU for scheduling,
+# and EURAG only needs CPU in short bursts while answering.
 resources:
   requests:
-    cpu: 250m
+    cpu: 100m
     memory: 1Gi
   limits:
     memory: 2560Mi
@@ -65,7 +67,7 @@ qdrant:
   storage: 2Gi
   resources:
     requests:
-      cpu: 100m
+      cpu: 25m
       memory: 256Mi
     limits:
       memory: 1Gi
