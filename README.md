@@ -21,15 +21,19 @@ The workload is [EURAG](https://github.com/kashastic/eu-rag), my citation-first 
 
 ## Status
 
-Deployed end to end on 16 November 2026, starting from an empty pay-as-you-go subscription in Germany West Central:
+**The public site is off** to save cost; `make up` brings it back at https://eurag.duckdns.org in about 25 minutes, and `make down` takes it off again.
 
-- All five stacks applied. A fresh `terraform plan` on bootstrap, foundation and aks afterwards shows no changes.
-- The EURAG image was built and pushed by the `build-eurag` workflow over OIDC, with no stored credentials, and Argo CD deployed it from this repository.
-- `kubectl` works only through Entra ID; the cluster has no local accounts.
-- EURAG serves its full corpus of 47 documents (31 EUR-Lex acts plus EU portal pages and national funding schemes, 4,202 chunks). Its Anthropic key comes from Key Vault through workload identity. Asked whether a 30-person software company needs a Data Protection Officer, it answered in about 20 seconds from GDPR Article 37, with both citations resolving to the regulation on EUR-Lex.
-- The cluster is destroyed between sessions (`make down`) and the foundation stays, so the next session starts with `make up`.
+Last full cycle, 16 November 2026, on a pay-as-you-go subscription in Germany West Central, starting from no cluster:
 
-[docs/DESIGN.md](docs/DESIGN.md#what-the-first-deployment-changed) lists what the first deployment changed.
+- `make up` built AKS and the platform with no manual steps. Argo CD synced Envoy Gateway, cert-manager and EURAG; cert-manager had a Let's Encrypt certificate about three minutes after the cluster existed; the seed restored the corpus from blob storage through the workload identity and embedded all **47 documents**.
+- `https://eurag.duckdns.org/healthz` reported `documents: 47`, `auth_enabled: true`, `encryption: true` and the Turnstile site key. Plain HTTP redirects to HTTPS; HSTS is set and `X-Powered-By` is stripped.
+- In a browser, an anonymous question got a cited answer (Sale of Goods Directive, Articles 10 and 12). After the free questions the sign-up wall appeared.
+- Twelve requests with twelve forged `X-Forwarded-For` addresses hit the same rate limit as twelve plain ones (10 through, then 429), so a client can't mint fresh quota.
+- From inside the cluster: the web pod can't reach the internet (connection times out) or Redis; the API can't reach the cloud metadata endpoint or plain HTTP but does reach Anthropic over HTTPS; a privileged pod is rejected by Pod Security `restricted`.
+- Both images passed the vulnerability gate. On its first run the gate had stopped the API image; that fix is in [eu-rag#1](https://github.com/kashastic/eu-rag/pull/1) together with the Next.js upgrade.
+- A fresh `terraform plan` on bootstrap, foundation and aks showed no changes.
+
+[docs/SECURITY.md](docs/SECURITY.md) explains the layers, and [docs/DESIGN.md](docs/DESIGN.md#what-the-first-deployment-changed) lists what real Azure changed.
 
 ## Architecture
 
