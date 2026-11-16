@@ -27,6 +27,9 @@ spec:
             set:
               - name: Strict-Transport-Security
                 value: max-age=31536000
+            # Don't advertise the framework and version to scanners.
+            remove:
+              - X-Powered-By
       backendRefs:
         - name: eurag
           port: {{ .Values.service.port }}
@@ -40,6 +43,9 @@ spec:
             set:
               - name: Strict-Transport-Security
                 value: max-age=31536000
+            # Don't advertise the framework and version to scanners.
+            remove:
+              - X-Powered-By
       backendRefs:
         - name: eurag-web
           port: 3000

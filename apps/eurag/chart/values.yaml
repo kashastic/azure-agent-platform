@@ -101,12 +101,13 @@ public:
   edgeNamespace: edge
   freeAnonQuestions: 2
   freeUserQuestions: 10
-  # Cloudflare Turnstile on anonymous questions and sign-up. The secret key
-  # is read from Key Vault; the site key is public (it ships to every
-  # browser), so it is a plain value. Both set = bot check on.
+  # Cloudflare Turnstile on anonymous questions and sign-up. Both keys are
+  # read from Key Vault (the site key is public, but keeping it next to its
+  # secret means rotating the widget never needs a commit). Both names set
+  # = bot check on; empty = off.
   turnstile:
     keyVaultSecret: turnstile-key
-    sitekey: ""
+    sitekeyKeyVaultSecret: turnstile-sitekey
 
 # Corpus cache tarball in blob storage, restored on first boot through the
 # workload identity (EUR-Lex refuses cloud IPs). Empty = scrape instead.

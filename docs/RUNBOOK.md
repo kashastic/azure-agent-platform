@@ -90,7 +90,7 @@ For the public site, three more things, once:
    ```bash
    terraform -chdir=infra/envs/dev/foundation output -raw ingress_ip_address
    ```
-2. **Turnstile.** Create an invisible widget for the hostname in Cloudflare. Store the secret key in Key Vault as `turnstile-key` and put the site key (public) in `public.turnstile.sitekey` in `apps/eurag/chart/values-dev.yaml`. Without both, the bot check is off.
+2. **Turnstile.** Create an invisible widget for the hostname in Cloudflare and store its keys in Key Vault: the secret key as `turnstile-key`, the site key as `turnstile-sitekey`. Both must exist before the platform stack is applied, or the API pod waits on its Key Vault mount.
 3. **Corpus.** EUR-Lex refuses requests from cloud IPs, so upload the corpus cache scraped on a laptop. The seed restores it on every fresh cluster:
    ```bash
    # In the eu-rag checkout
