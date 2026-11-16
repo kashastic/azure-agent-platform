@@ -2,14 +2,18 @@ name: terraform
 
 # Pull requests: static checks on every stack, plus a real plan of the
 # foundation stack with a read-only identity.
+# Pushes to main: the static checks again, so nothing skips them.
 # Manual run: plan and apply one stack, after approval of the dev environment.
 on:
   pull_request:
-    paths:
+    paths: &terraform_paths
       - "infra/**"
       - "platform/teams.yaml"
       - ".tflint.hcl"
       - ".github/workflows/terraform.yml"
+  push:
+    branches: [main]
+    paths: *terraform_paths
   workflow_dispatch:
     inputs:
       stack:

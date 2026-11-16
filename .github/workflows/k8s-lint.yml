@@ -2,11 +2,14 @@ name: kubernetes-manifests
 
 on:
   pull_request:
-    paths:
+    paths: &manifest_paths
       - "apps/**"
       - "platform/**"
       - "infra/charts/**"
       - ".github/workflows/k8s-lint.yml"
+  push:
+    branches: [main]
+    paths: *manifest_paths
 
 permissions:
   contents: read
