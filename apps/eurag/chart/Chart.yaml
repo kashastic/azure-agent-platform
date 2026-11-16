@@ -1,0 +1,9 @@
+apiVersion: v2
+name: eurag
+description: >-
+  EURAG, a citation-first RAG over official EU law
+  (https://github.com/kashastic/eu-rag), packaged for the agent platform:
+  API + Qdrant, secrets from Key Vault through workload identity.
+type: application
+version: 0.1.0
+appVersion: "32906cd90762"

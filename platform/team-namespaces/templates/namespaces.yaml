@@ -1,0 +1,62 @@
+{{- range $team, $spec := .Values.teams }}
+{{- $quota := merge (dict) (default (dict) $spec.quota) $.Values.defaultQuota }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ $spec.namespace }}
+  labels:
+    team: {{ $team }}
+    cost-center: {{ $spec.cost_center | default "unassigned" }}
+    app.kubernetes.io/managed-by: argocd
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/warn: restricted
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: team-quota
+  namespace: {{ $spec.namespace }}
+spec:
+  hard:
+    requests.cpu: {{ $quota.cpu | quote }}
+    requests.memory: {{ $quota.memory | quote }}
+    pods: {{ $quota.pods | quote }}
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: default-container-limits
+  namespace: {{ $spec.namespace }}
+spec:
+  limits:
+    - type: Container
+      defaultRequest:
+        cpu: {{ $.Values.defaultContainer.requests.cpu }}
+        memory: {{ $.Values.defaultContainer.requests.memory }}
+      default:
+        memory: {{ $.Values.defaultContainer.limits.memory }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: {{ $spec.namespace }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-same-namespace
+  namespace: {{ $spec.namespace }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector: {}
+{{- end }}

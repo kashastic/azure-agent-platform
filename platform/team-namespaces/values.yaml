@@ -1,0 +1,16 @@
+# Teams come from platform/teams.yaml (passed as a value file by Argo CD).
+teams: {}
+
+# Used when a team in teams.yaml has no quota of its own.
+defaultQuota:
+  cpu: "1"
+  memory: 2Gi
+  pods: "20"
+
+# Applied to containers that don't set their own requests and limits.
+defaultContainer:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    memory: 512Mi

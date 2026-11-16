@@ -1,0 +1,25 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: team-namespaces
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/part-of: agent-platform
+spec:
+  project: default
+  source:
+    repoURL: {{ .Values.repoURL | quote }}
+    targetRevision: {{ .Values.targetRevision | quote }}
+    path: platform/team-namespaces
+    helm:
+      # The same teams.yaml that Terraform reads for Entra ID groups and
+      # Azure RBAC. One file, two consumers.
+      valueFiles:
+        - ../teams.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

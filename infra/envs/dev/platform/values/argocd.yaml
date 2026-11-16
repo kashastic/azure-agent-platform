@@ -1,0 +1,55 @@
+# Argo CD sized for a single small node. Anything not set here keeps the
+# chart default.
+
+# No SSO and no notifications in the lab: admin login through port-forward.
+dex:
+  enabled: false
+
+notifications:
+  enabled: false
+
+configs:
+  params:
+    # TLS is not terminated inside the cluster; the UI is only reached
+    # through kubectl port-forward, which is itself authenticated with Entra ID.
+    server.insecure: true
+
+controller:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
+
+repoServer:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+
+server:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+
+redis:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 256Mi
+
+applicationSet:
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      memory: 256Mi

@@ -1,0 +1,13 @@
+# Set by infra/envs/dev/platform. Defaults are only here so the chart lints.
+repoURL: https://github.com/kashastic/azure-agent-platform.git
+targetRevision: main
+
+# Labels for the namespaces Argo CD creates (mirror the Azure tags).
+labels: {}
+
+eurag:
+  namespace: eurag
+  imageRepository: ""
+  keyVaultName: ""
+  tenantId: ""
+  workloadClientId: ""

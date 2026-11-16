@@ -1,0 +1,4 @@
+# Dev environment. The build pipeline (.github/workflows/build-eurag.yml)
+# writes image.tag here; Argo CD deploys whatever is committed.
+image:
+  tag: "32906cd90762"

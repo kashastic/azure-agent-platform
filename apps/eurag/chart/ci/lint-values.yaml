@@ -1,0 +1,8 @@
+# Placeholder values for helm lint and kubeconform in CI. In the cluster
+# these come from Terraform through the Argo CD application.
+image:
+  repository: example.azurecr.io/eurag
+azure:
+  tenantId: 00000000-0000-0000-0000-000000000000
+  keyVaultName: kv-example
+  workloadIdentityClientId: 00000000-0000-0000-0000-000000000000

@@ -1,0 +1,81 @@
+image:
+  # Set by the platform (registry login server + /eurag).
+  repository: ""
+  # Set per environment in values-<env>.yaml by the build pipeline.
+  tag: ""
+  pullPolicy: IfNotPresent
+
+azure:
+  # Set by the platform from Terraform outputs.
+  tenantId: ""
+  keyVaultName: ""
+  workloadIdentityClientId: ""
+  # Key Vault secret -> environment variable in the EURAG container.
+  secrets:
+    - keyVaultSecret: anthropic-api-key
+      envName: ANTHROPIC_API_KEY
+
+serviceAccount:
+  # Must match the federated credential subject in infra/envs/dev/aks.
+  name: eurag
+
+eurag:
+  # Fail loudly: an embedder that can't load its model crashes the pod
+  # instead of silently falling back (see EURAG docs/DEPLOY.md).
+  strictBoot: true
+  # Caps reranker memory on the escalation path. EURAG measured ~1.6 GB
+  # extra at batch 64, ~0.3 GB at 8, with identical accuracy.
+  rerankBatch: 8
+  # Extra EURAG_* settings, for example EURAG_LLM_MODEL: claude-haiku-4-5
+  extraEnv: {}
+
+seed:
+  # First boot only: scrape the official EU sources and embed them into
+  # Qdrant. Skipped when the registry already exists on the volume.
+  enabled: true
+  # Fail the seed unless at least this many documents were ingested.
+  expectDocs: null
+  resources:
+    requests:
+      cpu: 250m
+      memory: 1Gi
+    limits:
+      memory: 2560Mi
+
+# Measured by EURAG: ~835 MB idle, ~1.8 GB answering, ~2.1 GB on the
+# escalation path with rerankBatch 8.
+resources:
+  requests:
+    cpu: 250m
+    memory: 1Gi
+  limits:
+    memory: 2560Mi
+
+persistence:
+  # Registry (SQLite), model cache. Azure Disk, so one node at a time.
+  storageClass: managed-csi
+  size: 5Gi
+
+service:
+  port: 8000
+
+qdrant:
+  image: qdrant/qdrant:v1.17.1
+  storageClass: managed-csi
+  storage: 2Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
+
+# Off on purpose. EURAG keeps its document registry in a per-instance
+# SQLite file, so a second replica would answer from a different registry
+# than the first. Turn this on once the registry moves to Postgres (EURAG
+# already does this for auth and chat history).
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 70

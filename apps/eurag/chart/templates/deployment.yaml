@@ -1,0 +1,147 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: eurag
+  labels:
+    {{- include "eurag.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+spec:
+  replicas: 1
+  # One Azure Disk (ReadWriteOnce) and a per-instance SQLite registry: the
+  # old pod must stop before the new one starts.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "eurag.apiSelector" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "eurag.apiSelector" . | nindent 8 }}
+        # Lets the workload identity webhook inject the federated token.
+        azure.workload.identity/use: "true"
+      annotations:
+        checksum/secret-provider: {{ include (print $.Template.BasePath "/secretproviderclass.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: wait-for-qdrant
+          image: {{ include "eurag.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - python
+            - -c
+            - |
+              import time, urllib.request
+              for _ in range(120):
+                  try:
+                      urllib.request.urlopen("http://eurag-qdrant:6333/readyz", timeout=3)
+                      break
+                  except Exception:
+                      time.sleep(5)
+              else:
+                  raise SystemExit("qdrant did not become ready in 10 minutes")
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          securityContext:
+            {{- include "eurag.containerSecurityContext" . | nindent 12 }}
+        {{- if .Values.seed.enabled }}
+        # First boot only: scrape the official sources and embed them. The
+        # registry on the volume marks a finished seed, so restarts skip this.
+        - name: seed-corpus
+          image: {{ include "eurag.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - sh
+            - -c
+            - |
+              if [ -f /app/var/registry.sqlite3 ]; then
+                echo "eurag: registry present, skipping seed"
+                exit 0
+              fi
+              exec python -m data.seed --scrape{{ with .Values.seed.expectDocs }} --expect-docs {{ . }}{{ end }}
+          env:
+            {{- include "eurag.env" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.seed.resources | nindent 12 }}
+          securityContext:
+            {{- include "eurag.containerSecurityContext" . | nindent 12 }}
+          volumeMounts:
+            - name: state
+              mountPath: /app/var
+            - name: corpus-cache
+              mountPath: /app/data/raw
+        {{- end }}
+      containers:
+        - name: api
+          image: {{ include "eurag.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            {{- include "eurag.env" . | nindent 12 }}
+          # The first start loads the ONNX embedder and reranker, which can
+          # take a few minutes; liveness only begins once this has passed.
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 36
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 5
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            {{- include "eurag.containerSecurityContext" . | nindent 12 }}
+          volumeMounts:
+            - name: state
+              mountPath: /app/var
+            - name: corpus-cache
+              mountPath: /app/data/raw
+            # Mounting this volume is what triggers the Key Vault read and
+            # the sync into the eurag-secrets Secret.
+            - name: keyvault
+              mountPath: /mnt/secrets-store
+              readOnly: true
+      volumes:
+        - name: state
+          persistentVolumeClaim:
+            claimName: eurag-state
+        # Raw scraped sources are only needed while seeding.
+        - name: corpus-cache
+          emptyDir:
+            sizeLimit: 1Gi
+        - name: keyvault
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: eurag-keyvault

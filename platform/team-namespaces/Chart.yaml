@@ -1,0 +1,7 @@
+apiVersion: v2
+name: team-namespaces
+description: >-
+  One namespace per team in platform/teams.yaml, with a resource quota,
+  default container limits and a default-deny network policy.
+type: application
+version: 0.1.0

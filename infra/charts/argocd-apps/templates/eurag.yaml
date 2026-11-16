@@ -1,0 +1,44 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: eurag
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/part-of: agent-platform
+spec:
+  project: default
+  source:
+    repoURL: {{ .Values.repoURL | quote }}
+    targetRevision: {{ .Values.targetRevision | quote }}
+    path: apps/eurag/chart
+    helm:
+      valueFiles:
+        - values-dev.yaml
+      # Values that come from Azure. Helm parameters take precedence over
+      # the value files, so these can't drift from what Terraform built.
+      parameters:
+        - name: image.repository
+          value: {{ .Values.eurag.imageRepository | quote }}
+        - name: azure.tenantId
+          value: {{ .Values.eurag.tenantId | quote }}
+        - name: azure.keyVaultName
+          value: {{ .Values.eurag.keyVaultName | quote }}
+        - name: azure.workloadIdentityClientId
+          value: {{ .Values.eurag.workloadClientId | quote }}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: {{ .Values.eurag.namespace }}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+    managedNamespaceMetadata:
+      labels:
+        team: platform
+        pod-security.kubernetes.io/enforce: baseline
+        pod-security.kubernetes.io/warn: restricted
+        {{- range $key, $value := .Values.labels }}
+        {{ $key }}: {{ $value | quote }}
+        {{- end }}

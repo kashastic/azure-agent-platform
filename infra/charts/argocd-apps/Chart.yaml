@@ -1,0 +1,8 @@
+apiVersion: v2
+name: argocd-apps
+description: >-
+  The Argo CD Applications the platform stack registers. Terraform passes in
+  the values it owns (workload identity, Key Vault, registry); everything else
+  comes from Git.
+type: application
+version: 0.1.0

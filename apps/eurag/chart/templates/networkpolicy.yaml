@@ -1,0 +1,40 @@
+# Only the EURAG API may talk to Qdrant.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: eurag-qdrant-ingress
+  labels:
+    {{- include "eurag.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "eurag.qdrantSelector" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "eurag.apiSelector" . | nindent 14 }}
+      ports:
+        - port: 6333
+        - port: 6334
+---
+# The API accepts traffic from its own namespace only (port-forward included).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: eurag-api-ingress
+  labels:
+    {{- include "eurag.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "eurag.apiSelector" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector: {}
+      ports:
+        - port: 8000
