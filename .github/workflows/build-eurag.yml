@@ -95,13 +95,15 @@ jobs:
       # image sits in the registry but never reaches the cluster.
       - name: Scan both images
         run: |
+          failed=0
           for ref in "$IMAGE:${{ steps.meta.outputs.tag }}" "$WEB_IMAGE:${{ steps.meta.outputs.tag }}"; do
             echo "::group::trivy $ref"
             docker run --rm -v "$HOME/.docker/config.json:/root/.docker/config.json:ro" \
               aquasec/trivy:latest image --no-progress --severity HIGH,CRITICAL \
-              --ignore-unfixed --exit-code 1 "$ref"
+              --ignore-unfixed --exit-code 1 "$ref" || { failed=1; echo "::error::$ref has fixable critical or high vulnerabilities"; }
             echo "::endgroup::"
           done
+          exit "$failed"
 
       - name: Commit the new tag for Argo CD
         env:
