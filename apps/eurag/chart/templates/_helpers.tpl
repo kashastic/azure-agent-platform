@@ -31,11 +31,19 @@ app.kubernetes.io/name: eurag
 app.kubernetes.io/component: redis
 {{- end }}
 
+{{/* Non-empty when the Turnstile bot check is fully configured. */}}
+{{- define "eurag.turnstile" -}}
+{{- if and .Values.public.turnstile.keyVaultSecret .Values.public.turnstile.sitekey -}}true{{- end -}}
+{{- end }}
+
 {{/* Key Vault secrets in use: the base list, plus the public ones. */}}
 {{- define "eurag.secrets" -}}
 {{- $secrets := .Values.azure.secrets -}}
 {{- if .Values.public.hostname -}}
 {{- $secrets = concat $secrets .Values.azure.publicSecrets -}}
+{{- if include "eurag.turnstile" . -}}
+{{- $secrets = concat $secrets (list (dict "keyVaultSecret" .Values.public.turnstile.keyVaultSecret "envName" "EURAG_TURNSTILE_SECRET")) -}}
+{{- end -}}
 {{- end -}}
 {{- toYaml $secrets -}}
 {{- end }}
@@ -84,6 +92,10 @@ app.kubernetes.io/component: redis
   value: {{ .Values.public.freeAnonQuestions | quote }}
 - name: EURAG_FREE_USER_QUESTIONS
   value: {{ .Values.public.freeUserQuestions | quote }}
+{{- if include "eurag.turnstile" . }}
+- name: EURAG_TURNSTILE_SITEKEY
+  value: {{ .Values.public.turnstile.sitekey | quote }}
+{{- end }}
 {{- end }}
 {{- range $name, $value := .Values.eurag.extraEnv }}
 - name: {{ $name }}
