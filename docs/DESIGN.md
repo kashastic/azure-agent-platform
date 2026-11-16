@@ -97,7 +97,39 @@ The Applications come from a small local chart rather than `kubernetes_manifest`
 - **Probes sized to the app.** A startup probe allows up to six minutes for the ONNX models to load, so liveness can't kill a pod that is still starting.
 - **Limits from measurement.** EURAG's own measurements: about 835 MB idle, 1.8 GB answering, around 2.1 GB on the escalation path with the reranker batch capped at 8. The memory limit is 2.5 GiB.
 - **Hardening.** Non-root (UID 10001), no privilege escalation, all capabilities dropped, RuntimeDefault seccomp, no service account token. The namespace enforces the Pod Security `baseline` level and warns on `restricted`.
-- **Not exposed publicly.** The service is ClusterIP and reached through `kubectl port-forward`, which requires an Entra ID sign-in. A public ingress with TLS and EURAG's own auth turned on is a deliberate next step.
+- **Two modes.** Without `public_hostname` the service is ClusterIP and reached through `kubectl port-forward`, which requires an Entra ID sign-in. With it, EURAG runs as in its own production compose (decisions 16 to 20).
+
+## Public endpoint
+
+EURAG used to run publicly on a single Google Cloud VM, which was taken over through an unpatched web framework and used to mine cryptocurrency ([SECURITY.md](SECURITY.md)). These decisions move it here and are shaped by that.
+
+### 16. Gateway API with Envoy Gateway, not NGINX ingress
+
+The community ingress-nginx project was retired in March 2026, and the AKS application routing add-on's NGINX support ends on 30 November 2026. Envoy Gateway implements the Gateway API, which is where Kubernetes ingress is heading, and gives two things this deployment needs: a `ClientTrafficPolicy` to drop client-sent `X-Forwarded-For` before Envoy adds the real peer address, and `EnvoyProxy` settings to put the proxy on a fixed Azure IP with `externalTrafficPolicy: Local`.
+
+- **cert-manager** issues the Let's Encrypt certificate over HTTP-01 through the same Gateway.
+- **One Argo CD application** installs Envoy Gateway, cert-manager and the Gateway together. A single sync applies the Gateway API CRDs before any Deployment starts, and cert-manager only looks for them at startup.
+- **Versions are pinned** (Envoy Gateway v1.9.3, cert-manager v1.21.2). v1.9 is supported until February 2027; v1.10 was eleven days old.
+
+### 17. The static IP lives in the foundation
+
+The gateway's public IP is created by the foundation stack, not by the cluster, and the cluster's identity is granted Network Contributor on that one IP. `make down` deletes the cluster but not the address, so the DNS record set once keeps working after every `make up`.
+
+### 18. Assume a pod gets taken over
+
+The old host was compromised through the web app. Here, every pod in the namespace starts from default-deny in both directions and gets only the paths it needs; the web app has no outbound network at all, and the API cannot reach private ranges or the cloud metadata endpoint. Pod Security `restricted` is enforced, and root filesystems are read-only where the software allows. The table is in [SECURITY.md](SECURITY.md#3-contain-a-compromised-pod).
+
+### 19. Secrets generated into Key Vault
+
+The JWT secret, encryption key and database passwords are `random_bytes` and `random_password` resources written straight to Key Vault by the foundation stack. Nobody types them, and they outlive the cluster, so sessions and encrypted data stay valid across a rebuild for as long as Postgres does. Postgres and Redis each receive a Kubernetes Secret with only their own password.
+
+### 20. Corpus restored from blob storage
+
+EUR-Lex refuses requests from cloud IPs, so the cluster can't scrape the legal texts. The corpus cache sits in a blob container in the foundation (Entra ID only, shared keys off). On first boot the seed init container exchanges its workload identity token for a storage token and restores it, using only Python's standard library. A public deployment must reach all 47 documents or the pod fails, instead of quietly serving 18.
+
+### 21. Off means destroyed
+
+"Turning the site off" is `make down`: the cluster, its disks and its load balancer are deleted, and only the foundation remains (about 8 EUR a month, mostly the registry and the static IP). Stopping the cluster would keep the disks and load balancer billing. Bringing it back is `make up`, about 20 minutes, on the same address. Accounts created while it was up do not survive; this is a demo environment, not a service with users.
 
 ## Guardrails and cost
 
