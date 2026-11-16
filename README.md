@@ -24,7 +24,7 @@ Deployed end to end on 16 November 2026, starting from an empty pay-as-you-go su
 - All five stacks applied. A fresh `terraform plan` on bootstrap, foundation and aks afterwards shows no changes.
 - The EURAG image was built and pushed by the `build-eurag` workflow over OIDC, with no stored credentials, and Argo CD deployed it from this repository.
 - `kubectl` works only through Entra ID; the cluster has no local accounts.
-- EURAG serves its full corpus of 47 documents (31 EUR-Lex acts plus EU portal pages and national funding schemes, 4,202 chunks). Its Anthropic key comes from Key Vault through workload identity.
+- EURAG serves its full corpus of 47 documents (31 EUR-Lex acts plus EU portal pages and national funding schemes, 4,202 chunks). Its Anthropic key comes from Key Vault through workload identity. Asked whether a 30-person software company needs a Data Protection Officer, it answered in about 20 seconds from GDPR Article 37, with both citations resolving to the regulation on EUR-Lex.
 - The cluster is destroyed between sessions (`make down`) and the foundation stays, so the next session starts with `make up`.
 
 [docs/DESIGN.md](docs/DESIGN.md#what-the-first-deployment-changed) lists what the first deployment changed.
