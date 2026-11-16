@@ -1,0 +1,24 @@
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+tfplan
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+# Local-only variable files (secrets, personal IDs)
+*.auto.tfvars
+.terraformrc
+terraform.rc
+
+# Helm
+*.tgz
+
+# Local
+.env
+.DS_Store
+src/
