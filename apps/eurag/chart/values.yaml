@@ -36,12 +36,15 @@ seed:
   enabled: true
   # Fail the seed unless at least this many documents were ingested.
   expectDocs: null
+  # The seed runs before the API starts, so its peak never overlaps the
+  # API's. Embedding the large acts (GDPR, the AI Act, the VAT Directive)
+  # was OOM-killed at 2.5 GiB; EURAG's production seeder runs on a 4 GB host.
   resources:
     requests:
       cpu: 100m
       memory: 1Gi
     limits:
-      memory: 2560Mi
+      memory: 4Gi
 
 # Measured by EURAG: ~835 MB idle, ~1.8 GB answering, ~2.1 GB on the
 # escalation path with rerankBatch 8. CPU is a small request with no limit:
