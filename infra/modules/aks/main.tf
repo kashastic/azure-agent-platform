@@ -14,12 +14,26 @@ resource "azurerm_role_assignment" "subnet_network_contributor" {
   principal_type       = "ServicePrincipal"
 }
 
+# Extra network resources the cluster may attach, such as a static public
+# IP kept outside the node resource group.
+resource "azurerm_role_assignment" "extra_network_contributor" {
+  for_each = var.extra_network_contributor_scopes
+
+  scope                = each.value
+  role_definition_name = "Network Contributor"
+  principal_id         = azurerm_user_assigned_identity.control_plane.principal_id
+  principal_type       = "ServicePrincipal"
+}
+
 # Role assignments take a short while to propagate in Entra ID. Without this
 # pause, cluster creation can fail with a "not authorized to join subnet" error.
 resource "time_sleep" "rbac_propagation" {
   create_duration = "60s"
 
-  depends_on = [azurerm_role_assignment.subnet_network_contributor]
+  depends_on = [
+    azurerm_role_assignment.subnet_network_contributor,
+    azurerm_role_assignment.extra_network_contributor,
+  ]
 }
 
 resource "azurerm_kubernetes_cluster" "this" {

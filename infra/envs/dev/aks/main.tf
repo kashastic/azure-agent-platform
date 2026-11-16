@@ -28,6 +28,12 @@ data "azurerm_user_assigned_identity" "eurag" {
   resource_group_name = data.azurerm_resource_group.core.name
 }
 
+# The gateway's static IP, kept in the foundation so it survives `make down`.
+data "azurerm_public_ip" "ingress" {
+  name                = "pip-${local.name}-ingress"
+  resource_group_name = data.azurerm_resource_group.core.name
+}
+
 # Created by the access stack from platform/teams.yaml.
 data "azuread_group" "team" {
   for_each = local.teams
@@ -71,6 +77,10 @@ module "aks" {
     { for id in local.platform_admins : "admin-${id}" => id },
     { for team, spec in local.cluster_admin_teams : "team-${team}" => data.azuread_group.team[team].object_id },
   )
+
+  extra_network_contributor_scopes = {
+    ingress-ip = data.azurerm_public_ip.ingress.id
+  }
 }
 
 # ---------------------------------------------------------------------------

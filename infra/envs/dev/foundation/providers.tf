@@ -3,4 +3,7 @@ provider "azurerm" {
   features {}
 
   resource_provider_registrations = "none"
+
+  # The data storage account has shared keys turned off.
+  storage_use_azuread = true
 }

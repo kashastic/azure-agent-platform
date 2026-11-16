@@ -32,3 +32,18 @@ output "log_analytics_workspace_id" {
   description = "Workspace for logs and metrics."
   value       = module.log_analytics.id
 }
+
+output "ingress_ip_name" {
+  description = "Name of the gateway's static public IP."
+  value       = azurerm_public_ip.ingress.name
+}
+
+output "ingress_ip_address" {
+  description = "The gateway's public address. Point the DNS record here."
+  value       = azurerm_public_ip.ingress.ip_address
+}
+
+output "data_storage_account_name" {
+  description = "Storage account holding the EURAG corpus cache."
+  value       = azurerm_storage_account.data.name
+}

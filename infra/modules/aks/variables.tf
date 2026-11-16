@@ -57,6 +57,12 @@ variable "subnet_id" {
   type        = string
 }
 
+variable "extra_network_contributor_scopes" {
+  description = "Other network resources the cluster's identity may use, keyed by a static name (for example a static public IP for the gateway)."
+  type        = map(string)
+  default     = {}
+}
+
 variable "pod_cidr" {
   description = "Overlay range for pod IPs. Must not overlap the virtual network."
   type        = string

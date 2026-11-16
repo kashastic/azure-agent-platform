@@ -42,9 +42,9 @@ variable "alert_email" {
 }
 
 variable "node_vm_size" {
-  description = "Node VM size. 2 vCPU and 8 GB fits Argo CD, Qdrant and EURAG's measured peak of about 2.4 GB. Pick a size the subscription has quota for (az vm list-usage)."
+  description = "Node VM size. The AKS add-ons reserve most of a 2-vCPU node, and the public stack adds Postgres, Redis, the web app, the gateway and cert-manager next to EURAG's 2.5 GiB API, so 4 vCPU and 16 GB. Pick a size the subscription has quota for (az vm list-usage)."
   type        = string
-  default     = "Standard_D2s_v7"
+  default     = "Standard_D4s_v7"
 }
 
 variable "node_count" {
