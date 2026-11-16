@@ -32,7 +32,7 @@ Student and trial subscriptions often restrict regions and VM sizes. Check befor
 ```bash
 az policy assignment list --query "[].{name:displayName, params:parameters}" -o json
 az vm list-usage --location germanywestcentral -o table | grep -iE "total regional|standard bs"
-az vm list-skus --location germanywestcentral --size Standard_B2ms --query "[].restrictions" -o json
+az vm list-skus --location germanywestcentral --size Standard_D2s_v7 --query "[].restrictions" -o json
 ```
 
 The globally unique names (Key Vault, registry, storage account) use `suffix` from `common.tfvars`. Change it if a name is taken.
@@ -151,7 +151,7 @@ cd infra/bootstrap && terraform destroy -var-file=../envs/dev/common.tfvars
 | Symptom | Likely cause and fix |
 | --- | --- |
 | `RequestDisallowedByAzure` or `RequestDisallowedByPolicy` | The subscription only allows some regions. Change `location` in `common.tfvars` |
-| `OperationNotAllowed` ... quota | Not enough vCPU quota for the node size. Pick a size from `az vm list-usage` |
+| `OperationNotAllowed` ... quota, or "VM size ... is not allowed in your subscription" | The error lists the sizes the subscription allows. Set `node_vm_size` in the AKS stack to one of them (Azure for Students: the v7 D-series) |
 | `403` on `terraform init` | The Storage Blob Data role from bootstrap hasn't propagated yet. Wait and retry |
 | `MissingSubscriptionRegistration` | A resource provider isn't registered. Register it (step 0) |
 | `kubelogin: command not found` | `brew install Azure/kubelogin/kubelogin` |

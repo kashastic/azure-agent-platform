@@ -42,9 +42,9 @@ variable "alert_email" {
 }
 
 variable "node_vm_size" {
-  description = "Node VM size. 2 vCPU and 8 GB fits Argo CD, Qdrant and EURAG's measured peak of about 2.4 GB."
+  description = "Node VM size. 2 vCPU and 8 GB fits Argo CD, Qdrant and EURAG's measured peak of about 2.4 GB. Azure for Students only allows the v7 D-series at this size."
   type        = string
-  default     = "Standard_B2ms"
+  default     = "Standard_D2s_v7"
 }
 
 variable "node_count" {

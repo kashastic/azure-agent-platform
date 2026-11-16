@@ -132,7 +132,7 @@ The reasoning behind each choice, with the trade-offs, is in [docs/DESIGN.md](do
 
 ## Cost
 
-On an Azure for Students subscription, the foundation costs a few euros a month (mostly the Basic registry). The cluster is one `Standard_B2ms` node on the free AKS tier, about 0.10 EUR an hour while it runs, and it is destroyed after each session. Log ingestion is capped at 0.5 GB a day and a subscription budget emails at 50% of actual and 100% of forecast spend.
+On an Azure for Students subscription, the foundation costs a few euros a month (mostly the Basic registry). The cluster is one `Standard_D2s_v7` node (2 vCPU, 8 GB) on the free AKS tier, roughly 0.10 to 0.15 EUR an hour while it runs, and it is destroyed after each session. Log ingestion is capped at 0.5 GB a day and a subscription budget emails at 50% of actual and 100% of forecast spend.
 
 ## Known limits and next steps
 
