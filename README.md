@@ -2,7 +2,7 @@
 
 A small internal platform on Azure where a team can deploy an AI agent to AKS. All infrastructure is Terraform, deployments go through CI/CD and GitOps, and each team's access is driven by one YAML file.
 
-The workload is [EURAG](https://github.com/kashastic/eu-rag), my citation-first RAG over EU law: a FastAPI service with Qdrant, local ONNX embeddings and reranking, Claude for answers, and a Next.js web app. It can run privately (port-forward only) or publicly at `eurag.duckdns.org` behind a Gateway with TLS. The public site is switched off between demos to save cost; `make up` brings it back on the same address in about 20 minutes.
+The workload is [EURAG](https://github.com/kashastic/eu-rag), my citation-first RAG over EU law: a FastAPI service with Qdrant, local ONNX embeddings and reranking, Claude for answers, and a Next.js web app. It can run privately (port-forward only) or publicly at `eurag.duckdns.org` behind a Gateway with TLS. The public site is switched off between demos to save cost; `make up` brings it back on the same address in about 25 minutes.
 
 ## What it covers
 

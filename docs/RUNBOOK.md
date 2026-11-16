@@ -162,7 +162,7 @@ kubectl -n argocd port-forward svc/argocd-server 8080:80      # http://localhost
 
 ```bash
 make down      # destroys platform, then aks: the site goes offline
-make up        # foundation, access, aks, platform: back in about 20 minutes
+make up        # foundation, access, aks, platform: back in about 25 minutes
 ```
 
 `make down` deletes the cluster, its disks and its load balancer. What stays costs about 8 EUR a month: the registry, the static IP, Key Vault, the corpus blob and the logs. `make up` brings the site back on the same address with a fresh certificate. Accounts created while it was up are gone, because Postgres lives on a cluster disk.
